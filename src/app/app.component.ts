@@ -1,5 +1,5 @@
 import {Observable, BehaviorSubject} from 'rxjs';
-import {map, tap, first} from 'rxjs/operators';
+import {map, first} from 'rxjs/operators';
 
 import {
     AfterViewInit,
@@ -21,7 +21,6 @@ import {
     SidenavContainerComponent,
     MapContainerComponent,
     AbstractSymbology,
-    LayerService,
     LayoutService,
     ProjectService,
     UserService,
@@ -32,23 +31,8 @@ import {
     MapService,
     Config,
     ResultTypes,
-    PointSymbology,
-    VectorSymbology,
-    LineSymbology,
     PlotListComponent,
     WorkflowParameterChoiceDialogComponent,
-    NavigationButton,
-    SourceOperatorListComponent,
-    NavigationComponent,
-    OperatorListComponent,
-    TimeConfigComponent,
-    WorkspaceSettingsComponent,
-    HelpComponent,
-    SourceOperatorListButton,
-    GFBioSourceType,
-    GbifOperatorComponent,
-    OperatorListButtonGroups,
-    SidenavConfig,
 } from '@umr-dbs/wave-core';
 import {DomSanitizer} from '@angular/platform-browser';
 import {ActivatedRoute} from '@angular/router';
@@ -68,23 +52,16 @@ export class AppComponent implements OnInit, AfterViewInit {
     @ViewChild(SidenavContainerComponent, {static: true}) rightSidenavContainer: SidenavContainerComponent;
 
     readonly ResultTypes = ResultTypes;
-    readonly LayoutService = LayoutService;
 
     readonly layersReverse$: Observable<Array<Layer<AbstractSymbology>>>;
     readonly layerListVisible$: Observable<boolean>;
     readonly layerDetailViewVisible$: Observable<boolean>;
 
-    readonly navigationButtons = this.setupNavigation();
-    readonly addAFirstLayerConfig = AppComponent.setupAddDataConfig();
-
-    middleContainerHeight$: Observable<number>;
-    bottomContainerHeight$: Observable<number>;
     mapIsGrid$: Observable<boolean>;
 
     private windowHeight$ = new BehaviorSubject<number>(window.innerHeight);
 
     constructor(@Inject(Config) readonly config: AppConfig,
-                readonly layerService: LayerService,
                 readonly layoutService: LayoutService,
                 readonly projectService: ProjectService,
                 readonly vcRef: ViewContainerRef, // reference used by color picker
@@ -123,22 +100,16 @@ export class AppComponent implements OnInit, AfterViewInit {
         // used for navigation
         this.iconRegistry.addSvgIcon('cogs', this.sanitizer.bypassSecurityTrustResourceUrl('assets/icons/cogs.svg'));
 
-        // TODO: migrate to geo bon app
-        // this.iconRegistry.addSvgIconInNamespace(
-        //     'geobon',
-        //     'logo',
-        //     this.sanitizer.bypassSecurityTrustResourceUrl('assets/geobon-logo.svg'),
-        // );
+        this.iconRegistry.addSvgIconInNamespace(
+            'geobon',
+            'logo',
+            this.sanitizer.bypassSecurityTrustResourceUrl('assets/geobon-logo.svg'),
+        );
     }
 
     ngOnInit() {
         this.mapService.registerMapComponent(this.mapComponent);
         this.mapIsGrid$ = this.mapService.isGrid$;
-
-        this.middleContainerHeight$ = this.layoutService.getMapHeightStream(this.windowHeight$).pipe(
-            tap(() => this.mapComponent.resize()),
-        );
-        this.bottomContainerHeight$ = this.layoutService.getLayerDetailViewStream(this.windowHeight$);
     }
 
     ngAfterViewInit() {
@@ -153,85 +124,7 @@ export class AppComponent implements OnInit, AfterViewInit {
         this.projectService.getNewPlotStream()
             .subscribe(() => this.layoutService.setSidenavContentComponent({component: PlotListComponent}));
 
-        // set the stored tab index
-        this.layoutService.getLayerDetailViewTabIndexStream().subscribe(tabIndex => {
-            if (this.bottomTabs.selectedIndex !== tabIndex) {
-                this.bottomTabs.selectedIndex = tabIndex;
-                setTimeout(() => this.changeDetectorRef.markForCheck());
-            }
-        });
-
         this.handleQueryParameters();
-    }
-
-    setTabIndex(index: number) {
-        this.layoutService.setLayerDetailViewTabIndex(index);
-        this.layoutService.setLayerDetailViewVisibility(true);
-    }
-
-    private setupNavigation(): Array<NavigationButton> {
-        return [
-            NavigationComponent.createLoginButton(this.userService, this.layoutService, this.config),
-            {
-                sidenavConfig: AppComponent.setupAddDataConfig(),
-                icon: 'add',
-                tooltip: 'Add Data',
-            },
-            {
-                sidenavConfig: {component: OperatorListComponent, config: {operators: AppComponent.createOperatorListButtons()}},
-                icon: '',
-                svgIcon: 'cogs',
-                tooltip: 'Operators',
-            },
-            {
-                sidenavConfig: {component: PlotListComponent},
-                icon: 'equalizer',
-                tooltip: 'Plots',
-            },
-            {
-                sidenavConfig: {component: TimeConfigComponent},
-                icon: 'access_time',
-                tooltip: 'Time',
-            },
-            {
-                sidenavConfig: {component: WorkspaceSettingsComponent},
-                icon: 'settings',
-                tooltip: 'Workspace',
-            },
-            {
-                sidenavConfig: {component: HelpComponent},
-                icon: 'help',
-                tooltip: 'Help',
-            },
-        ];
-    }
-
-    private static setupAddDataConfig(): SidenavConfig {
-        return {component: SourceOperatorListComponent, config: {buttons: AppComponent.createSourceOperatorListButtons()}};
-    }
-
-    private static createSourceOperatorListButtons(): Array<SourceOperatorListButton> {
-        return [
-            SourceOperatorListComponent.createDataRepositoryButton(),
-            SourceOperatorListComponent.createDrawFeaturesButton(),
-            ...SourceOperatorListComponent.createCustomFeaturesButtons(),
-            {
-                name: 'Species Occurrences',
-                description: 'Query data from GBIF',
-                iconSrc: GFBioSourceType.ICON_URL,
-                sidenavConfig: {component: GbifOperatorComponent, keepParent: true},
-            },
-            SourceOperatorListComponent.createCountryPolygonsButton(),
-        ];
-    }
-
-    private static createOperatorListButtons(): OperatorListButtonGroups {
-        return [
-            {name: 'Mixed', list: OperatorListComponent.DEFAULT_MIXED_OPERATOR_DIALOGS},
-            {name: 'Plots', list: OperatorListComponent.DEFAULT_PLOT_OPERATOR_DIALOGS},
-            {name: 'Raster', list: OperatorListComponent.DEFAULT_RASTER_OPERATOR_DIALOGS},
-            {name: 'Vector', list: OperatorListComponent.DEFAULT_VECTOR_OPERATOR_DIALOGS},
-        ];
     }
 
     @HostListener('window:resize')

@@ -20,10 +20,14 @@ import {
     WaveCoreModule,
 } from '@umr-dbs/wave-core';
 import {AppConfig} from './app-config.service';
+import { EbvSelectorComponent } from './ebv-selector/ebv-selector.component';
+import { LegendComponent } from './legend/legend.component';
 
 @NgModule({
     declarations: [
         AppComponent,
+        EbvSelectorComponent,
+        LegendComponent,
     ],
     imports: [
         BrowserAnimationsModule,

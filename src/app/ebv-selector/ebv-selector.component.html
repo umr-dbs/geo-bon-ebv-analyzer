@@ -1,0 +1,50 @@
+<mat-toolbar color="primary">
+    <div class="geobon-logo">
+        <mat-icon mat-list-icon svgIcon="geobon:logo" alt="GeoBon"></mat-icon>
+        <br>
+        <span class="subtitle">powered by <span class="title">VAT</span></span>
+    </div>
+</mat-toolbar>
+<div class="container">
+    <mat-form-field>
+        <mat-label>EBV Class</mat-label>
+        <mat-select>
+            <mat-option value="a">A</mat-option>
+            <mat-option value="b">B</mat-option>
+            <mat-option value="c">C</mat-option>
+        </mat-select>
+    </mat-form-field>
+    <mat-form-field>
+        <mat-label>EBV Name</mat-label>
+        <mat-select>
+            <mat-option value="a">A</mat-option>
+            <mat-option value="b">B</mat-option>
+            <mat-option value="c">C</mat-option>
+        </mat-select>
+    </mat-form-field>
+    <mat-form-field>
+        <mat-label>EBV Dataset</mat-label>
+        <mat-select>
+            <mat-option value="a">A</mat-option>
+            <mat-option value="b">B</mat-option>
+            <mat-option value="c">C</mat-option>
+        </mat-select>
+    </mat-form-field>
+    <!-- TODO: add descriptions -->
+    <!-- TODO: some fields inbetween -->
+    <mat-form-field>
+        <mat-label>Entity</mat-label>
+        <input type="text"
+               placeholder="Entity"
+               aria-label="Entity"
+               matInput
+               [matAutocomplete]="entity">
+        <mat-autocomplete #entity="matAutocomplete">
+            <mat-option value="entity_a">Entity A</mat-option>
+            <mat-option value="entity_a">Entity B</mat-option>
+            <mat-option value="entity_a">Entity C</mat-option>
+        </mat-autocomplete>
+    </mat-form-field>
+    <!-- TODO: only allow selectable values
+        or use https://stackblitz.com/edit/angular-material-mat-select-filter?file=app%2Fform-field-prefix-suffix-example.html -->
+</div>

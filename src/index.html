@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="utf-8">
-    <title>VAT: Visualization, Analysis and Transformation System</title>
+    <title>GEO BON EBV Analyzer powered by VAT</title>
 
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link rel="icon" type="image/x-icon" href="favicon.ico">
@@ -10,21 +10,30 @@
 <body>
 <wave-app-root>
     <style type="text/css">
+        :root {
+            --top-logo-height: 20vh;
+            --logo-bar-height: calc(9.4vh + 2vh);
+            --logo-margin: 5vh;
+            --center-height: calc(var(--logo-bar-height) + 2 * var(--logo-margin));
+            --loading-bar-height: 20vh;
+            --top-bottom-margin: calc((100vh - var(--top-logo-height) - var(--center-height) - var(--loading-bar-height)) / 2);
+        }
+
         body {
             margin: 0;
             padding: 0;
             color: whitesmoke;
             text-shadow: 0 1px 3px rgba(0, 0, 0, 0.12), 0 1px 2px rgba(0, 0, 0, 0.24);
-            background: #335AA3;
+            background: #00796a;
         }
 
         h1 {
             text-align: center;
             font-family: 'Pacifico', cursive;
-            font-size: 20vh;
-            height: 20vh;
-            line-height: 20vh;
-            margin: 30vh 0 0 0;
+            font-size: var(--top-logo-height);
+            height: var(--top-logo-height);
+            line-height: var(--top-logo-height);
+            margin: var(--top-bottom-margin) 0 0 0;
         }
 
         h1 span {
@@ -38,12 +47,50 @@
             filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.12)) drop-shadow(0 1px 2px rgba(0, 0, 0, 0.24));
         }
 
+        h2 {
+            --logo-inner-height: calc(var(--logo-bar-height) - 2vh);
+
+            text-align: center;
+            min-height: calc(var(--logo-bar-height));
+            margin: var(--logo-margin) 0 var(--logo-margin) 0;
+            padding-top: 1vh;
+            box-sizing: border-box;
+
+            background: white;
+            filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.12)) drop-shadow(0 1px 2px rgba(0, 0, 0, 0.24));
+        }
+
+        h2 .logo {
+            height: calc(var(--logo-inner-height) - 1px);
+            background-size: contain;
+            display: inline-block;
+        }
+
+        .logo-umr {
+            background: url('assets/logo_umr.png') center no-repeat;
+            width: calc((400 / 143) * var(--logo-inner-height) - 1px);
+        }
+
+        .logo-gfbio {
+            background: white url('assets/logo_gfbio.png') center no-repeat;
+            width: calc((174 / 86) * 0.9 * var(--logo-inner-height) - 1px);
+        }
+
+        .logo-sgn {
+            background: url('assets/logo-senckenberg.png') center no-repeat;
+            width: calc((3098 / 573) * 0.5 * var(--logo-inner-height) - 1px);
+        }
+
+        .logo-geobon {
+            background: white url('assets/GEOBON-color.png') center no-repeat;
+            width: calc((500 / 106) * 0.5 * var(--logo-inner-height) - 1px);
+        }
+
         div {
             text-align: center;
-            font-size: 20vh;
-            height: 20vh;
-            line-height: 20vh;
-            margin: 0 0 30vh 0;
+            font-size: var(--loading-bar-height);
+            height: var(--loading-bar-height);
+            line-height: var(--loading-bar-height);
         }
 
         @keyframes blink {
@@ -74,6 +121,12 @@
         }
     </style>
     <h1><span class="logo"></span>VAT</h1>
+    <h2>
+        <span class="logo logo-umr"></span>
+        <span class="logo logo-sgn"></span>
+        <span class="logo logo-gfbio"></span>
+        <span class="logo logo-geobon"></span>
+    </h2>
     <div class="dots">
         <span>&middot;</span>
         <span>&middot;</span>

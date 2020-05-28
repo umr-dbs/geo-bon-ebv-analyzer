@@ -40,3 +40,11 @@ mat-toolbar {
 mat-form-field {
     width: 100%;
 }
+
+mat-spinner {
+    margin: 0 auto;
+}
+
+.label {
+    color: var(--wave-foreground-secondary-text-color);
+}

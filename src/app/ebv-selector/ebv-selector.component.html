@@ -5,31 +5,33 @@
         <span class="subtitle">powered by <span class="title">VAT</span></span>
     </div>
 </mat-toolbar>
-<div class="container">
-    <mat-form-field>
+<div class="container mat-typography">
+    <mat-form-field *ngIf="ebvClasses">
         <mat-label>EBV Class</mat-label>
-        <mat-select>
-            <mat-option value="a">A</mat-option>
-            <mat-option value="b">B</mat-option>
-            <mat-option value="c">C</mat-option>
+        <mat-select (selectionChange)="setEbvClass($event.value)">
+            <mat-option *ngFor="let ebvClass of ebvClasses"
+                        [value]="ebvClass">{{ebvClass}}</mat-option>
         </mat-select>
     </mat-form-field>
-    <mat-form-field>
+    <mat-form-field *ngIf="ebvNames">
         <mat-label>EBV Name</mat-label>
-        <mat-select>
-            <mat-option value="a">A</mat-option>
-            <mat-option value="b">B</mat-option>
-            <mat-option value="c">C</mat-option>
+        <mat-select (selectionChange)="setEbvName($event.value)">
+            <mat-option *ngFor="let ebvName of ebvNames"
+                        [value]="ebvName">{{ebvName}}</mat-option>
         </mat-select>
     </mat-form-field>
-    <mat-form-field>
+    <mat-form-field *ngIf="ebvDatasets">
         <mat-label>EBV Dataset</mat-label>
-        <mat-select>
-            <mat-option value="a">A</mat-option>
-            <mat-option value="b">B</mat-option>
-            <mat-option value="c">C</mat-option>
+        <mat-select (selectionChange)="setEbvDataset($event.value)">
+            <mat-option *ngFor="let ebvDataset of ebvDatasets"
+                        [value]="ebvDataset">{{ebvDataset.name}}</mat-option>
         </mat-select>
     </mat-form-field>
+    <div *ngIf="ebvDataset">
+        <p><em><span class="label">by</span> {{ebvDataset.author}}</em></p>
+        <p><em><span class="label">with license</span> {{ebvDataset.license}}</em></p>
+        <p>{{ebvDataset.description}}</p>
+    </div>
     <!-- TODO: add descriptions -->
     <!-- TODO: some fields inbetween -->
     <mat-form-field>
@@ -47,4 +49,5 @@
     </mat-form-field>
     <!-- TODO: only allow selectable values
         or use https://stackblitz.com/edit/angular-material-mat-select-filter?file=app%2Fform-field-prefix-suffix-example.html -->
+    <mat-spinner *ngIf="loading$ | async"></mat-spinner>
 </div>

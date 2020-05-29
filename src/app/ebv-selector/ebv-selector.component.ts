@@ -1,6 +1,6 @@
 import {Component, OnInit, ChangeDetectionStrategy, ChangeDetectorRef} from '@angular/core';
 import {HttpClient} from '@angular/common/http';
-import {Config, MappingRequestParameters, UserService} from '@umr-dbs/wave-core';
+import {Config, MappingRequestParameters, ParametersType, UserService} from '@umr-dbs/wave-core';
 import {BehaviorSubject} from 'rxjs';
 
 @Component({
@@ -27,16 +27,8 @@ export class EbvSelectorComponent implements OnInit {
     }
 
     ngOnInit() {
-        const ebvClassRequest = new MappingRequestParameters({
-            service: 'geo_bon_catalog',
-            request: 'classes',
-            sessionToken: this.userService.getSession().sessionToken,
-        });
-        this.http.get<EbvClassesResponse>(`${this.config.MAPPING_URL}?${ebvClassRequest.toMessageBody()}`).subscribe(data => {
+        this.request<EbvClassesResponse>('classes', undefined, data => {
             this.ebvClasses = data.classes;
-
-            this.changeDetectorRef.markForCheck();
-            this.loading$.next(false);
         });
     }
 
@@ -49,18 +41,9 @@ export class EbvSelectorComponent implements OnInit {
 
         this.clearAfter('ebvClass');
 
-        this.loading$.next(true);
-
-        const ebvClassRequest = new MappingRequestParameters({
-            service: 'geo_bon_catalog',
-            request: 'names',
-            sessionToken: this.userService.getSession().sessionToken,
-        });
-        this.http.get<EbvNamesResponse>(`${this.config.MAPPING_URL}?${ebvClassRequest.toMessageBody()}`).subscribe(data => {
+        // TODO: incorporate `ebvClass` variable
+        this.request<EbvNamesResponse>('names', undefined, data => {
             this.ebvNames = data.names;
-
-            this.changeDetectorRef.markForCheck();
-            this.loading$.next(false);
         });
     }
 
@@ -73,18 +56,9 @@ export class EbvSelectorComponent implements OnInit {
 
         this.clearAfter('ebvName');
 
-        this.loading$.next(true);
-
-        const ebvClassRequest = new MappingRequestParameters({
-            service: 'geo_bon_catalog',
-            request: 'datasets',
-            sessionToken: this.userService.getSession().sessionToken,
-        });
-        this.http.get<EbvDatasetsResponse>(`${this.config.MAPPING_URL}?${ebvClassRequest.toMessageBody()}`).subscribe(data => {
+        // TODO: incorporate `ebvName` variable
+        this.request<EbvDatasetsResponse>('datasets', undefined, data => {
             this.ebvDatasets = data.datasets;
-
-            this.changeDetectorRef.markForCheck();
-            this.loading$.next(false);
         });
     }
 
@@ -96,6 +70,23 @@ export class EbvSelectorComponent implements OnInit {
         this.ebvDataset = ebvDataset;
 
         // TODO: rest...
+    }
+
+    private request<T>(request, parameters: ParametersType, dataCallback: (T) => void) {
+        this.loading$.next(true);
+
+        const ebvDatasetsRequest = new MappingRequestParameters({
+            service: 'geo_bon_catalog',
+            request,
+            parameters,
+            sessionToken: this.userService.getSession().sessionToken,
+        });
+        this.http.get<T>(`${this.config.MAPPING_URL}?${ebvDatasetsRequest.toMessageBody()}`).subscribe(data => {
+            dataCallback(data);
+
+            this.changeDetectorRef.markForCheck();
+            this.loading$.next(false);
+        });
     }
 
     private clearAfter(field: string) {

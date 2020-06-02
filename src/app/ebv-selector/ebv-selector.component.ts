@@ -13,8 +13,8 @@ export class EbvSelectorComponent implements OnInit {
 
     loading$ = new BehaviorSubject(true);
 
-    ebvClasses: Array<string> = undefined;
-    ebvClass: string = undefined;
+    ebvClasses: Array<EbvClass> = undefined;
+    ebvClass: EbvClass = undefined;
     ebvNames: Array<string> = undefined;
     ebvName: string = undefined;
     ebvDatasets: Array<EbvDataset> = undefined;
@@ -32,7 +32,7 @@ export class EbvSelectorComponent implements OnInit {
         });
     }
 
-    setEbvClass(ebvClass: string) {
+    setEbvClass(ebvClass: EbvClass) {
         if (this.ebvClass === ebvClass) {
             return;
         }
@@ -41,10 +41,7 @@ export class EbvSelectorComponent implements OnInit {
 
         this.clearAfter('ebvClass');
 
-        // TODO: incorporate `ebvClass` variable
-        this.request<EbvNamesResponse>('names', undefined, data => {
-            this.ebvNames = data.names;
-        });
+        this.ebvNames = ebvClass.ebv_names;
     }
 
     setEbvName(ebvName: string) {
@@ -57,7 +54,7 @@ export class EbvSelectorComponent implements OnInit {
         this.clearAfter('ebvName');
 
         // TODO: incorporate `ebvName` variable
-        this.request<EbvDatasetsResponse>('datasets', undefined, data => {
+        this.request<EbvDatasetsResponse>('datasets', {ebv_name: ebvName}, data => {
             this.ebvDatasets = data.datasets;
         });
     }
@@ -103,14 +100,14 @@ export class EbvSelectorComponent implements OnInit {
     }
 }
 
-interface EbvClassesResponse {
-    result: true;
-    classes: Array<string>;
+interface EbvClass {
+    name: string;
+    ebv_names: Array<string>;
 }
 
-interface EbvNamesResponse {
+interface EbvClassesResponse {
     result: true;
-    names: Array<string>;
+    classes: Array<EbvClass>;
 }
 
 interface EbvDataset {

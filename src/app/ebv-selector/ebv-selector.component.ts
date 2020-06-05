@@ -1,7 +1,9 @@
-import {Component, OnInit, ChangeDetectionStrategy, ChangeDetectorRef} from '@angular/core';
+import {Component, OnInit, ChangeDetectionStrategy, ChangeDetectorRef, Inject} from '@angular/core';
 import {HttpClient} from '@angular/common/http';
 import {Config, MappingRequestParameters, ParametersType, UserService} from '@umr-dbs/wave-core';
 import {BehaviorSubject} from 'rxjs';
+import * as moment from 'moment';
+import {AppConfig} from '../app-config.service';
 
 @Component({
     selector: 'wave-ebv-ebv-selector',
@@ -23,8 +25,11 @@ export class EbvSelectorComponent implements OnInit {
     ebvSubgroupValueOptions: Array<Array<EbvSubgroupValue>> = [];
     ebvSubgroupValues: Array<EbvSubgroupValue> = [];
 
+    private ebvTimePoints: Array<number> = undefined;
+    private ebvDeltaUnit: string;
+
     constructor(private userService: UserService,
-                private config: Config,
+                @Inject(Config) private config: AppConfig,
                 private changeDetectorRef: ChangeDetectorRef,
                 private http: HttpClient) {
     }
@@ -70,8 +75,8 @@ export class EbvSelectorComponent implements OnInit {
 
         this.clearAfter('ebvDataset');
 
-        // TODO: use `ebvDataset.dataset_path`
-        const ebv_path = '/home/beilschmidt/CLionProjects/mapping-ebv/test/data/cSAR_idiv_004.nc&service=geo_bon_catalog';
+        const ebv_path = this.ebvDataset.dataset_path;
+
         this.request<EbvSubgroupsResponse>('subgroups', {ebv_path}, data => {
             this.request<EbvSubgroupValuesResponse>('subgroup_values', {
                 ebv_path,
@@ -87,16 +92,18 @@ export class EbvSelectorComponent implements OnInit {
     setEbvSubgroupValue(subgroupIndex: number, subgroupValue: EbvSubgroupValue) {
         this.ebvSubgroupValues[subgroupIndex] = subgroupValue;
 
+        const ebv_path = this.ebvDataset.dataset_path;
+
         if (subgroupIndex === this.ebvSubgroups.length - 1) { // entity is selected
-            // TODO: query time array
+            this.request<EbvTimePointsResponse>('time_points', {ebv_path}, data => {
+                this.ebvTimePoints = data.time_points;
+                this.ebvDeltaUnit = data.delta_unit;
+            });
 
             return;
         }
 
         this.clearAfter('', subgroupIndex);
-
-        // TODO: use `ebvDataset.dataset_path`
-        const ebv_path = '/home/beilschmidt/CLionProjects/mapping-ebv/test/data/cSAR_idiv_004.nc&service=geo_bon_catalog';
 
         this.request<EbvSubgroupValuesResponse>('subgroup_values', {
             ebv_path,
@@ -108,10 +115,24 @@ export class EbvSelectorComponent implements OnInit {
     }
 
     isAddButtonVisible(): boolean {
-        if (!this.ebvSubgroups || !this.ebvSubgroupValues) {
+        if (!this.ebvSubgroups || !this.ebvSubgroupValues || !this.ebvTimePoints) {
             return false;
         }
         return this.ebvSubgroups.length === this.ebvSubgroupValues.length; // all groups have a selected value
+    }
+
+    showEbv() {
+        const path = this.ebvDataset.dataset_path;
+        const netCdfSubdataset = '/' + this.ebvSubgroupValues.map(value => value.name).join('/');
+
+        const timePoints = this.ebvTimePoints;
+        const deltaUnit = this.ebvDeltaUnit;
+
+        // TODO: delete log
+        console.log('load', path, netCdfSubdataset);
+        console.log('display', timePoints.map(t => moment.utc().seconds(t).format()), 'in', deltaUnit);
+
+        // TODO: remove layers and add layer
     }
 
     private request<T>(request, parameters: ParametersType, dataCallback: (T) => void) {
@@ -145,11 +166,13 @@ export class EbvSelectorComponent implements OnInit {
                 this.ebvSubgroups = undefined;
                 this.ebvSubgroupValues.length = 0;
                 this.ebvSubgroupValueOptions.length = 0;
+                this.ebvTimePoints = undefined;
                 break;
             default: // subgroup
                 if (subgroupIndex !== undefined) {
                     this.ebvSubgroupValues.length = subgroupIndex + 1;
                     this.ebvSubgroupValueOptions.length = subgroupIndex + 1;
+                    this.ebvTimePoints = undefined;
                 }
         }
     }
@@ -198,4 +221,10 @@ interface EbvSubgroupValue {
 interface EbvSubgroupValuesResponse {
     result: true;
     values: Array<EbvSubgroupValue>;
+}
+
+interface EbvTimePointsResponse {
+    result: true;
+    time_points: Array<number>;
+    delta_unit: string;
 }

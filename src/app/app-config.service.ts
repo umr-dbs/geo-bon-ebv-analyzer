@@ -2,21 +2,17 @@ import {Injectable} from '@angular/core';
 import {mergeDeep} from 'immutable';
 import {Config, WaveConfigStructure, WAVE_DEFAULT_CONFIG} from '@umr-dbs/wave-core';
 
-interface Components {
-    readonly PLAYBACK: {
-        readonly AVAILABLE: boolean,
-    };
+interface EbvAnalyzer {
+    readonly NETCDF: {};
 }
 
 interface AppConfigStructure extends WaveConfigStructure {
-    readonly COMPONENTS: Components;
+    readonly EBV_ANALYZER: EbvAnalyzer;
 }
 
 const APP_CONFIG_DEFAULTS = mergeDeep(WAVE_DEFAULT_CONFIG, {
-    COMPONENTS: {
-        PLAYBACK: {
-            AVAILABLE: false,
-        }
+    EBV_ANALYZER: {
+        NETCDF: {}
     },
 }) as AppConfigStructure;
 
@@ -24,8 +20,8 @@ const APP_CONFIG_DEFAULTS = mergeDeep(WAVE_DEFAULT_CONFIG, {
 export class AppConfig extends Config {
     protected config: AppConfigStructure;
 
-    get COMPONENTS(): Components {
-        return this.config.COMPONENTS;
+    get EBV_ANALYZER(): EbvAnalyzer {
+        return this.config.EBV_ANALYZER;
     }
 
     load(): Promise<void> {

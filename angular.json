@@ -32,12 +32,12 @@
                         "aot": true,
                         "assets": [
                             "src/favicon.ico",
-                            "src/assets",
                             {
                                 "glob": "**/*",
                                 "input": "node_modules/@umr-dbs/wave-core/assets",
                                 "output": "assets"
-                            }
+                            },
+                            "src/assets"
                         ],
                         "styles": [
                             "src/styles.scss",

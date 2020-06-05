@@ -1,5 +1,5 @@
 import {Observable} from 'rxjs';
-
+import { map } from 'rxjs/operators';
 import {
     AfterViewInit,
     ChangeDetectionStrategy,

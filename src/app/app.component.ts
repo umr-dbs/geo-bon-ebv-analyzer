@@ -33,6 +33,7 @@ import {
     ResultTypes,
     PlotListComponent,
     WorkflowParameterChoiceDialogComponent,
+    LayerListWorkflowParameterSliderComponent
 } from '@umr-dbs/wave-core';
 import {DomSanitizer} from '@angular/platform-browser';
 import {ActivatedRoute} from '@angular/router';
@@ -104,6 +105,17 @@ export class AppComponent implements OnInit, AfterViewInit {
             'geobon',
             'logo',
             this.sanitizer.bypassSecurityTrustResourceUrl('assets/geobon-logo.svg'),
+        );
+    }
+
+    getFirstLayerStream(): Observable<Layer<AbstractSymbology> | undefined> {
+        return this.projectService.getLayerStream().pipe(
+            map(layers => {
+                if (layers && layers.length > 0) {
+                    return layers[0];
+                }
+                return undefined;
+            })
         );
     }
 

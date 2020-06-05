@@ -4,7 +4,14 @@
     </mat-sidenav>
     <div class="time-container" fxLayoutAlign="space-around center">
         <wave-zoom-handles (zoomIn)="map.zoomIn()" (zoomOut)="map.zoomOut()" class="mat-elevation-z4"></wave-zoom-handles>
-        <wave-small-time-interaction class="mat-elevation-z4"></wave-small-time-interaction>
+        <div class="channel-as-time">
+            <wave-layer-list-workflow-parameter-slider
+                [layer] = "getFirstLayerStream() | async"
+                parameterName = "channel"
+                parameterDisplayName = "time"
+            >
+            </wave-layer-list-workflow-parameter-slider>
+        </div>
         <wave-ticker-interaction *ngIf="config.COMPONENTS.PLAYBACK.AVAILABLE" class="mat-elevation-z4"></wave-ticker-interaction>
         <div></div> <!-- moves Time Interaction to center (cf. space-around @ flex) -->
     </div>

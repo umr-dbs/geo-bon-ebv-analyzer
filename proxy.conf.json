@@ -1,6 +1,6 @@
 {
     "/cgi-bin/*": {
-        "target": "https://sng107.sng.uni-frankfurt.de/geobon/",
+        "target": "http://pc12493.mathematik.uni-marburg.de:4300/",
         "changeOrigin": true,
         "secure": false,
         "logLevel": "debug"

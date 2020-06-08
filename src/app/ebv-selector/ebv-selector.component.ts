@@ -176,7 +176,7 @@ export class EbvSelectorComponent implements OnInit {
         const ebvUnit = new Unit({
             interpolation: Interpolation.Continuous,
             measurement: 'raw',
-            unit: 'ebv',
+            unit: 'raw',
             min: 0,
             max: 100
         });
@@ -193,11 +193,12 @@ export class EbvSelectorComponent implements OnInit {
                     return {
                         channel: (i + 1),
                         datatype: ebvDataTypeCode,
-                        unit: ebvUnit
+                        unit: ebvUnit,
+                        file_name: path,
+                        netcdf_subdataset: netCdfSubdataset,
                     };
                 }),
                 file_name: path,
-                netcdf_subdataset: netCdfSubdataset,
                 coords: {
                     crs: ebvProjectionCode
                 },

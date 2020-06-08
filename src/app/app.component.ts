@@ -30,10 +30,12 @@ import {
     Config,
     ResultTypes,
     LayerListWorkflowParameterSliderComponent,
+    TimePoint,
 } from '@umr-dbs/wave-core';
 import {DomSanitizer} from '@angular/platform-browser';
 import {ActivatedRoute} from '@angular/router';
 import {AppConfig} from './app-config.service';
+import * as moment from 'moment';
 
 @Component({
     selector: 'wave-app-root',
@@ -50,7 +52,7 @@ export class AppComponent implements OnInit, AfterViewInit {
 
     readonly ResultTypes = ResultTypes;
 
-    readonly layersReverse$: Observable<Array<Layer<AbstractSymbology>>>;
+    layersReverse$: Observable<Array<Layer<AbstractSymbology>>>;
 
     mapIsGrid$: Observable<boolean>;
 
@@ -103,6 +105,9 @@ export class AppComponent implements OnInit, AfterViewInit {
 
     ngOnInit() {
         this.mapService.registerMapComponent(this.mapComponent);
+        this.layersReverse$ = this.projectService.getLayerStream();
+
+        this.projectService.setTime(new TimePoint(moment.utc()));
     }
 
     ngAfterViewInit() {

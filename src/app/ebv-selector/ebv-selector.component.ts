@@ -130,7 +130,7 @@ export class EbvSelectorComponent implements OnInit {
 
         // TODO: delete log
         console.log('load', path, netCdfSubdataset);
-        console.log('display', timePoints.map(t => moment.utc().seconds(t).format()), 'in', deltaUnit);
+        console.log('display', timePoints.map(t => moment.unix(t).utc().format()), 'in', deltaUnit);
 
         // TODO: remove layers and add layer
     }

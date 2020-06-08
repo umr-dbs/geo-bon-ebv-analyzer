@@ -37,5 +37,5 @@
         </ng-template>
     </wave-map-container>
 
-    <wave-ebv-legend></wave-ebv-legend>
+    <wave-ebv-legend [layer]="getFirstLayerStream() | async"></wave-ebv-legend>
 </mat-sidenav-container>

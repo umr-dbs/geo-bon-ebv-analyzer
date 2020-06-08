@@ -1,6 +1,5 @@
-import {Component, OnInit, ChangeDetectionStrategy} from '@angular/core';
-import {MappingRasterSymbology, RasterLayer} from '@umr-dbs/wave-core';
-import {BehaviorSubject, Observable} from 'rxjs';
+import {Component, OnInit, ChangeDetectionStrategy, Input, OnChanges, SimpleChanges, ChangeDetectorRef} from '@angular/core';
+import {MappingRasterSymbology, RasterLayer, ProjectService} from '@umr-dbs/wave-core';
 
 @Component({
     selector: 'wave-ebv-legend',
@@ -8,12 +7,13 @@ import {BehaviorSubject, Observable} from 'rxjs';
     styleUrls: ['./legend.component.scss'],
     changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class LegendComponent implements OnInit {
-    ebvLayer$: Observable<RasterLayer<MappingRasterSymbology>>;
+export class LegendComponent implements OnInit, OnChanges {
+    @Input() layer: RasterLayer<MappingRasterSymbology> = undefined;
 
-    constructor() {
-        // TODO: map raster to var
-        this.ebvLayer$ = new BehaviorSubject(undefined);
+    constructor(readonly changeDetectorRef: ChangeDetectorRef) {
+    }
+    ngOnChanges(changes: SimpleChanges): void {
+        this.changeDetectorRef.markForCheck();
     }
 
     ngOnInit(): void {

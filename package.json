@@ -24,7 +24,7 @@
         "@angular/platform-browser": "~9.1.4",
         "@angular/platform-browser-dynamic": "~9.1.4",
         "@angular/router": "~9.1.4",
-        "@umr-dbs/wave-core": "0.2.2",
+        "@umr-dbs/wave-core": "0.2.3",
         "codemirror": "~5.43.0",
         "d3": "~5.16.0",
         "dagre": "~0.8.5",

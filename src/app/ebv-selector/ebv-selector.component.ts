@@ -177,8 +177,8 @@ export class EbvSelectorComponent implements OnInit {
             interpolation: Interpolation.Continuous,
             measurement: 'raw',
             unit: 'raw',
-            min: 0,
-            max: 100
+            min: -35,
+            max: 35
         });
 
         const operatorType = new GdalSourceType({

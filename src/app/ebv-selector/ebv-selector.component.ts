@@ -1,6 +1,25 @@
 import {Component, OnInit, ChangeDetectionStrategy, ChangeDetectorRef, Inject} from '@angular/core';
 import {HttpClient} from '@angular/common/http';
-import {Config, MappingRequestParameters, ParametersType, UserService} from '@umr-dbs/wave-core';
+import {
+    Config,
+    MappingRequestParameters,
+    ParametersType,
+    UserService,
+    ProjectService,
+    MappingRasterSymbology,
+    Layer,
+    GdalSourceType,
+    ParameterOptionType,
+    Operator,
+    ResultTypes,
+    DataTypes,
+    DataType,
+    Unit,
+    Projections,
+    Interpolation,
+    RasterLayer,
+    GdalSourceParameterOptions,
+} from '@umr-dbs/wave-core';
 import {BehaviorSubject} from 'rxjs';
 import * as moment from 'moment';
 import {AppConfig} from '../app-config.service';
@@ -31,7 +50,8 @@ export class EbvSelectorComponent implements OnInit {
     constructor(private userService: UserService,
                 @Inject(Config) private config: AppConfig,
                 private changeDetectorRef: ChangeDetectorRef,
-                private http: HttpClient) {
+                private http: HttpClient,
+                private projectService: ProjectService) {
     }
 
     ngOnInit() {
@@ -132,7 +152,93 @@ export class EbvSelectorComponent implements OnInit {
         console.log('load', path, netCdfSubdataset);
         console.log('display', timePoints.map(t => moment.utc().seconds(t).format()), 'in', deltaUnit);
 
-        // TODO: remove layers and add layer
+        // remove layers
+        this.projectService.clearLayers();
+
+        // generate a new layer
+        const layer = this.generateGdalSourceNetCdfLayer();
+        this.projectService.addLayer(layer);
+
+    }
+
+    private generateGdalSourceNetCdfLayer(): Layer<MappingRasterSymbology> {
+
+        const path = this.ebvDataset.dataset_path;
+        const netCdfSubdataset = '/' + this.ebvSubgroupValues.map(value => value.name).join('/');
+
+        const timePoints = this.ebvTimePoints;
+        const readableTimePoints = timePoints.map(t => moment.utc().seconds(t).format());
+        const deltaUnit = this.ebvDeltaUnit;
+
+        const ebvDataTypeCode = 'Float32';
+        const ebvProjectionCode = 'EPSG:4326';
+
+        const ebvUnit = new Unit({
+            interpolation: Interpolation.Continuous,
+            measurement: 'raw',
+            unit: 'ebv',
+            min: 0,
+            max: 100
+        });
+
+        const operatorType = new GdalSourceType({
+            channelConfig: {
+                channelNumber: 0,
+                displayValue: (readableTimePoints.length > 0) ? readableTimePoints[0] : 'no time avaliable',
+            },
+            sourcename: this.ebvDataset.name,
+            transform: false, // TODO: user selectable transform?
+            gdal_params: {
+                channels: this.ebvTimePoints.map((t, i) => {
+                    return {
+                        channel: (i + 1),
+                        datatype: ebvDataTypeCode,
+                        unit: ebvUnit
+                    };
+                }),
+                file_name: path,
+                netcdf_subdataset: netCdfSubdataset,
+                coords: {
+                    crs: ebvProjectionCode
+                },
+                provenance: {
+                    citation: 'TODO',
+                    license: 'TODO',
+                    uri: 'TO.DO'
+                }
+            }
+        });
+
+        const operatorParameterOptions = new GdalSourceParameterOptions({
+            operatorType: operatorType.toString(),
+            channelConfig: {
+                kind: ParameterOptionType.DICT_ARRAY,
+                options: readableTimePoints.map((c, i) => {
+                    return {
+                        channelNumber: i,
+                        displayValue: c,
+                    };
+                }),
+            }
+        });
+
+        const sourceOperator = new Operator({
+            operatorType,
+            operatorTypeParameterOptions: operatorParameterOptions,
+            resultType: ResultTypes.RASTER,
+            projection: Projections.fromCode(ebvProjectionCode),
+            attributes: ['value'],
+            dataTypes: new Map<string, DataType>().set('value', DataTypes.fromCode(ebvDataTypeCode)),
+            units: new Map<string, Unit>().set('value', ebvUnit),
+        });
+
+        const rasterLayer = new RasterLayer<MappingRasterSymbology>({
+            name: this.ebvName,
+            operator: sourceOperator,
+            symbology: MappingRasterSymbology.createSymbology({unit: ebvUnit}),
+        });
+
+        return rasterLayer;
     }
 
     private request<T>(request, parameters: ParametersType, dataCallback: (T) => void) {

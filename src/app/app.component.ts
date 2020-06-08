@@ -1,5 +1,5 @@
 import {Observable} from 'rxjs';
-import { map } from 'rxjs/operators';
+import { map, distinct, distinctUntilChanged } from 'rxjs/operators';
 import {
     AfterViewInit,
     ChangeDetectionStrategy,
@@ -54,7 +54,7 @@ export class AppComponent implements OnInit, AfterViewInit {
 
     mapIsGrid$: Observable<boolean>;
 
-    constructor(@Inject(Config) private readonly config: AppConfig,
+    constructor(@Inject(Config) readonly config: AppConfig,
                 private readonly layoutService: LayoutService,
                 private readonly projectService: ProjectService,
                 private readonly vcRef: ViewContainerRef, // reference used by color picker
@@ -96,7 +96,8 @@ export class AppComponent implements OnInit, AfterViewInit {
                     return layers[0];
                 }
                 return undefined;
-            })
+            },
+            distinctUntilChanged())
         );
     }
 

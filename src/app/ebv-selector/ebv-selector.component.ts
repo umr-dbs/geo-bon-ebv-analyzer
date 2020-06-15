@@ -1,24 +1,24 @@
-import {Component, OnInit, ChangeDetectionStrategy, ChangeDetectorRef, Inject, OnDestroy} from '@angular/core';
+import {ChangeDetectionStrategy, ChangeDetectorRef, Component, Inject, OnDestroy, OnInit} from '@angular/core';
 import {HttpClient} from '@angular/common/http';
 import {
     Config,
-    MappingRequestParameters,
-    ParametersType,
-    UserService,
-    ProjectService,
-    MappingRasterSymbology,
-    Layer,
-    GdalSourceType,
-    ParameterOptionType,
-    Operator,
-    ResultTypes,
-    DataTypes,
     DataType,
-    Unit,
-    Projections,
-    Interpolation,
-    RasterLayer,
+    DataTypes,
     GdalSourceParameterOptions,
+    GdalSourceType,
+    Interpolation,
+    Layer,
+    MappingRasterSymbology,
+    MappingRequestParameters,
+    Operator,
+    ParameterOptionType,
+    ParametersType,
+    Projections,
+    ProjectService,
+    RasterLayer,
+    ResultTypes,
+    Unit,
+    UserService,
 } from '@umr-dbs/wave-core';
 import {BehaviorSubject, Subscription} from 'rxjs';
 import * as moment from 'moment';
@@ -32,7 +32,9 @@ import {AppConfig} from '../app-config.service';
 })
 export class EbvSelectorComponent implements OnInit, OnDestroy {
 
-    loading$ = new BehaviorSubject(true);
+    // TODO: set higher
+    readonly SUBGROUP_SEARCH_THRESHOLD = 3;
+    readonly loading$ = new BehaviorSubject(true);
 
     ebvClasses: Array<EbvClass> = undefined;
     ebvClass: EbvClass = undefined;
@@ -43,6 +45,7 @@ export class EbvSelectorComponent implements OnInit, OnDestroy {
     ebvDataset: EbvDataset = undefined;
     ebvSubgroups: Array<EbvSubgroup> = undefined;
     ebvSubgroupValueOptions: Array<Array<EbvSubgroupValue>> = [];
+    ebvSubgroupValueOptions$: Array<Array<EbvSubgroupValue>> = [];
     ebvSubgroupValues: Array<EbvSubgroupValue> = [];
 
     private ebvTimePoints: Array<number> = undefined;
@@ -118,6 +121,9 @@ export class EbvSelectorComponent implements OnInit, OnDestroy {
             }, value_data => {
                 this.ebvSubgroups = data.subgroups;
                 this.ebvSubgroupValueOptions = [value_data.values];
+                this.ebvSubgroupValueOptions$ = [value_data.values.slice()];
+
+                console.log(this.ebvSubgroupValueOptions, this.ebvSubgroups, this.ebvSubgroupValueOptions$);
             });
         });
     }
@@ -145,7 +151,20 @@ export class EbvSelectorComponent implements OnInit, OnDestroy {
             ebv_group_path: this.ebvSubgroupValues.map(value => value.name).join('/'),
         }, value_data => {
             this.ebvSubgroupValueOptions.push(value_data.values);
+            this.ebvSubgroupValueOptions$.push(value_data.values.slice());
         });
+    }
+
+    filterEbvSubgroupValueOptions(i: number, filterValue: string) {
+        filterValue = filterValue.toLowerCase();
+
+        this.ebvSubgroupValueOptions$[i].length = 0;
+        for (const valueOption of this.ebvSubgroupValueOptions[i]) {
+            if (valueOption.label.toLowerCase().indexOf(filterValue) < 0) {
+                continue;
+            }
+            this.ebvSubgroupValueOptions$[i].push(valueOption);
+        }
     }
 
     isAddButtonVisible(): boolean {
@@ -247,13 +266,11 @@ export class EbvSelectorComponent implements OnInit, OnDestroy {
             units: new Map<string, Unit>().set('value', ebvUnit),
         });
 
-        const rasterLayer = new RasterLayer<MappingRasterSymbology>({
+        return new RasterLayer<MappingRasterSymbology>({
             name: this.ebvName,
             operator: sourceOperator,
             symbology: MappingRasterSymbology.createSymbology({unit: ebvUnit}),
         });
-
-        return rasterLayer;
     }
 
     private request<T>(request, parameters: ParametersType, dataCallback: (T) => void) {
@@ -287,12 +304,14 @@ export class EbvSelectorComponent implements OnInit, OnDestroy {
                 this.ebvSubgroups = undefined;
                 this.ebvSubgroupValues.length = 0;
                 this.ebvSubgroupValueOptions.length = 0;
+                this.ebvSubgroupValueOptions$.length = 0;
                 this.ebvTimePoints = undefined;
                 break;
             default: // subgroup
                 if (subgroupIndex !== undefined) {
                     this.ebvSubgroupValues.length = subgroupIndex + 1;
                     this.ebvSubgroupValueOptions.length = subgroupIndex + 1;
+                    this.ebvSubgroupValueOptions$.length = subgroupIndex + 1;
                     this.ebvTimePoints = undefined;
                 }
         }

@@ -14,14 +14,16 @@ import {
     NotificationService,
     ProjectService,
     RandomColorService,
-    StorageService,
     SidenavRef,
+    StorageService,
     UserService,
     WaveCoreModule,
 } from '@umr-dbs/wave-core';
 import {AppConfig} from './app-config.service';
-import { EbvSelectorComponent } from './ebv-selector/ebv-selector.component';
-import { LegendComponent } from './legend/legend.component';
+import {EbvSelectorComponent} from './ebv-selector/ebv-selector.component';
+import {LegendComponent} from './legend/legend.component';
+import {NgxMatSelectSearchModule} from 'ngx-mat-select-search';
+import {FormsModule} from '@angular/forms';
 
 @NgModule({
     declarations: [
@@ -32,7 +34,9 @@ import { LegendComponent } from './legend/legend.component';
     imports: [
         BrowserAnimationsModule,
         BrowserModule,
+        FormsModule,
         HttpClientModule,
+        NgxMatSelectSearchModule,
         RouterModule.forRoot([{path: '**', component: AppComponent}], {useHash: true}),
         WaveCoreModule,
     ],

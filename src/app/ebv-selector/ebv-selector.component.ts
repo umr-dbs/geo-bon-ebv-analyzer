@@ -36,6 +36,7 @@ export class EbvSelectorComponent implements OnInit {
 
     ebvClasses: Array<EbvClass> = undefined;
     ebvClass: EbvClass = undefined;
+    ebvCrsCode: string = undefined;
     ebvNames: Array<string> = undefined;
     ebvName: string = undefined;
     ebvDatasets: Array<EbvDataset> = undefined;
@@ -115,9 +116,10 @@ export class EbvSelectorComponent implements OnInit {
         const ebv_path = this.ebvDataset.dataset_path;
 
         if (subgroupIndex === this.ebvSubgroups.length - 1) { // entity is selected
-            this.request<EbvTimePointsResponse>('time_points', {ebv_path}, data => {
+            this.request<EbvDataLoadingInfo>('data_loading_info', {ebv_path}, data => {
                 this.ebvTimePoints = data.time_points;
                 this.ebvDeltaUnit = data.delta_unit;
+                this.ebvCrsCode = data.crs_code;
             });
 
             return;
@@ -171,7 +173,7 @@ export class EbvSelectorComponent implements OnInit {
         const deltaUnit = this.ebvDeltaUnit;
 
         const ebvDataTypeCode = 'Float32';
-        const ebvProjectionCode = 'EPSG:4326';
+        const ebvProjectionCode = this.ebvCrsCode ? this.ebvCrsCode : 'EPSG:4326';
 
         const ebvUnit = new Unit({
             interpolation: Interpolation.Continuous,
@@ -330,8 +332,9 @@ interface EbvSubgroupValuesResponse {
     values: Array<EbvSubgroupValue>;
 }
 
-interface EbvTimePointsResponse {
+interface EbvDataLoadingInfo {
     result: true;
     time_points: Array<number>;
     delta_unit: string;
+    crs_code: string;
 }

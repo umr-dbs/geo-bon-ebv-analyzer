@@ -1,4 +1,4 @@
-import {Component, OnInit, ChangeDetectionStrategy, ChangeDetectorRef, Inject} from '@angular/core';
+import {Component, OnInit, ChangeDetectionStrategy, ChangeDetectorRef, Inject, OnDestroy} from '@angular/core';
 import {HttpClient} from '@angular/common/http';
 import {
     Config,
@@ -20,7 +20,7 @@ import {
     RasterLayer,
     GdalSourceParameterOptions,
 } from '@umr-dbs/wave-core';
-import {BehaviorSubject} from 'rxjs';
+import {BehaviorSubject, Subscription} from 'rxjs';
 import * as moment from 'moment';
 import {AppConfig} from '../app-config.service';
 
@@ -30,7 +30,7 @@ import {AppConfig} from '../app-config.service';
     styleUrls: ['./ebv-selector.component.scss'],
     changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class EbvSelectorComponent implements OnInit {
+export class EbvSelectorComponent implements OnInit, OnDestroy {
 
     loading$ = new BehaviorSubject(true);
 
@@ -48,6 +48,8 @@ export class EbvSelectorComponent implements OnInit {
     private ebvTimePoints: Array<number> = undefined;
     private ebvDeltaUnit: string;
 
+    private userSubscription: Subscription = undefined;
+
     constructor(private userService: UserService,
                 @Inject(Config) private config: AppConfig,
                 private changeDetectorRef: ChangeDetectorRef,
@@ -56,9 +58,19 @@ export class EbvSelectorComponent implements OnInit {
     }
 
     ngOnInit() {
-        this.request<EbvClassesResponse>('classes', undefined, data => {
-            this.ebvClasses = data.classes;
+        // react on user changes to get new list of classes with new session token
+        // important if first user has invalid session to retry querying the catalog
+        this.userSubscription = this.userService.getUserStream().subscribe(() => {
+            this.request<EbvClassesResponse>('classes', undefined, data => {
+                this.ebvClasses = data.classes;
+            });
         });
+    }
+
+    ngOnDestroy() {
+        if (this.userSubscription) {
+            this.userSubscription.unsubscribe();
+        }
     }
 
     setEbvClass(ebvClass: EbvClass) {

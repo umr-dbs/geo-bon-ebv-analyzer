@@ -1,5 +1,5 @@
 import {Observable} from 'rxjs';
-import { map, distinct, distinctUntilChanged } from 'rxjs/operators';
+import { map, distinctUntilChanged } from 'rxjs/operators';
 import {
     AfterViewInit,
     ChangeDetectionStrategy,
@@ -29,7 +29,6 @@ import {
     MapService,
     Config,
     ResultTypes,
-    LayerListWorkflowParameterSliderComponent,
     TimePoint,
 } from '@umr-dbs/wave-core';
 import {DomSanitizer} from '@angular/platform-browser';
@@ -52,6 +51,9 @@ export class AppComponent implements OnInit, AfterViewInit {
 
     readonly ResultTypes = ResultTypes;
 
+    // provides the first layer of the layer list in the project
+    readonly singleLayer$: Observable<Layer<AbstractSymbology> | undefined>;
+
     layersReverse$: Observable<Array<Layer<AbstractSymbology>>>;
 
     mapIsGrid$: Observable<boolean>;
@@ -72,6 +74,8 @@ export class AppComponent implements OnInit, AfterViewInit {
                 private readonly mapService: MapService,
                 private readonly sanitizer: DomSanitizer) {
         this.registerIcons();
+
+        this.singleLayer$ = this.getFirstLayerStream();
     }
 
     private registerIcons() {

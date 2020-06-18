@@ -38,7 +38,6 @@ export class EbvSelectorComponent implements OnInit, OnDestroy {
 
     ebvClasses: Array<EbvClass> = undefined;
     ebvClass: EbvClass = undefined;
-    ebvCrsCode: string = undefined;
     ebvNames: Array<string> = undefined;
     ebvName: string = undefined;
     ebvDatasets: Array<EbvDataset> = undefined;
@@ -48,8 +47,7 @@ export class EbvSelectorComponent implements OnInit, OnDestroy {
     ebvSubgroupValueOptions$: Array<Array<EbvSubgroupValue>> = [];
     ebvSubgroupValues: Array<EbvSubgroupValue> = [];
 
-    private ebvTimePoints: Array<number> = undefined;
-    private ebvDeltaUnit: string;
+    private ebvDataLoadingInfo: EbvDataLoadingInfo = undefined;
 
     private userSubscription: Subscription = undefined;
 
@@ -122,8 +120,6 @@ export class EbvSelectorComponent implements OnInit, OnDestroy {
                 this.ebvSubgroups = data.subgroups;
                 this.ebvSubgroupValueOptions = [value_data.values];
                 this.ebvSubgroupValueOptions$ = [value_data.values.slice()];
-
-                console.log(this.ebvSubgroupValueOptions, this.ebvSubgroups, this.ebvSubgroupValueOptions$);
             });
         });
     }
@@ -134,10 +130,11 @@ export class EbvSelectorComponent implements OnInit, OnDestroy {
         const ebv_path = this.ebvDataset.dataset_path;
 
         if (subgroupIndex === this.ebvSubgroups.length - 1) { // entity is selected
-            this.request<EbvDataLoadingInfo>('data_loading_info', {ebv_path}, data => {
-                this.ebvTimePoints = data.time_points;
-                this.ebvDeltaUnit = data.delta_unit;
-                this.ebvCrsCode = data.crs_code;
+            this.request<EbvDataLoadingInfo>('data_loading_info', {
+                ebv_path,
+                ebv_entity_path: this.ebvSubgroupValues.map(value => value.name).join('/'),
+            }, data => {
+                this.ebvDataLoadingInfo = data;
             });
 
             return;
@@ -168,7 +165,7 @@ export class EbvSelectorComponent implements OnInit, OnDestroy {
     }
 
     isAddButtonVisible(): boolean {
-        if (!this.ebvSubgroups || !this.ebvSubgroupValues || !this.ebvTimePoints) {
+        if (!this.ebvSubgroups || !this.ebvSubgroupValues || !this.ebvDataLoadingInfo) {
             return false;
         }
         return this.ebvSubgroups.length === this.ebvSubgroupValues.length; // all groups have a selected value
@@ -178,8 +175,8 @@ export class EbvSelectorComponent implements OnInit, OnDestroy {
         const path = this.ebvDataset.dataset_path;
         const netCdfSubdataset = '/' + this.ebvSubgroupValues.map(value => value.name).join('/');
 
-        const timePoints = this.ebvTimePoints;
-        const deltaUnit = this.ebvDeltaUnit;
+        const timePoints = this.ebvDataLoadingInfo.time_points;
+        const deltaUnit = this.ebvDataLoadingInfo.delta_unit;
 
         // TODO: delete log
         console.log('load', path, netCdfSubdataset);
@@ -199,19 +196,20 @@ export class EbvSelectorComponent implements OnInit, OnDestroy {
         const path = this.ebvDataset.dataset_path;
         const netCdfSubdataset = '/' + this.ebvSubgroupValues.map(value => value.name).join('/');
 
-        const timePoints = this.ebvTimePoints;
+        const timePoints = this.ebvDataLoadingInfo.time_points;
         const readableTimePoints = timePoints.map(t => moment.utc().seconds(t).format());
-        const deltaUnit = this.ebvDeltaUnit;
+        const deltaUnit = this.ebvDataLoadingInfo.delta_unit;
+        const crsCode = this.ebvDataLoadingInfo.crs_code;
 
         const ebvDataTypeCode = 'Float32';
-        const ebvProjectionCode = this.ebvCrsCode ? this.ebvCrsCode : 'EPSG:4326';
+        const ebvProjectionCode = crsCode ? crsCode : Projections.WGS_84.getCode();
 
         const ebvUnit = new Unit({
             interpolation: Interpolation.Continuous,
             measurement: 'raw',
             unit: 'raw',
-            min: -35,
-            max: 35
+            min: this.ebvDataLoadingInfo.unit_range[0],
+            max: this.ebvDataLoadingInfo.unit_range[1],
         });
 
         const operatorType = new GdalSourceType({
@@ -222,7 +220,7 @@ export class EbvSelectorComponent implements OnInit, OnDestroy {
             sourcename: this.ebvDataset.name,
             transform: false, // TODO: user selectable transform?
             gdal_params: {
-                channels: this.ebvTimePoints.map((t, i) => {
+                channels: timePoints.map((t, i) => {
                     return {
                         channel: (i + 1),
                         datatype: ebvDataTypeCode,
@@ -305,14 +303,14 @@ export class EbvSelectorComponent implements OnInit, OnDestroy {
                 this.ebvSubgroupValues.length = 0;
                 this.ebvSubgroupValueOptions.length = 0;
                 this.ebvSubgroupValueOptions$.length = 0;
-                this.ebvTimePoints = undefined;
+                this.ebvDataLoadingInfo = undefined;
                 break;
             default: // subgroup
                 if (subgroupIndex !== undefined) {
                     this.ebvSubgroupValues.length = subgroupIndex + 1;
                     this.ebvSubgroupValueOptions.length = subgroupIndex + 1;
                     this.ebvSubgroupValueOptions$.length = subgroupIndex + 1;
-                    this.ebvTimePoints = undefined;
+                    this.ebvDataLoadingInfo = undefined;
                 }
         }
     }
@@ -368,4 +366,5 @@ interface EbvDataLoadingInfo {
     time_points: Array<number>;
     delta_unit: string;
     crs_code: string;
+    unit_range: [number, number];
 }

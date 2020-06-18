@@ -197,7 +197,7 @@ export class EbvSelectorComponent implements OnInit, OnDestroy {
         const netCdfSubdataset = '/' + this.ebvSubgroupValues.map(value => value.name).join('/');
 
         const timePoints = this.ebvDataLoadingInfo.time_points;
-        const readableTimePoints = timePoints.map(t => moment.utc().seconds(t).format());
+        const readableTimePoints = timePoints.map(t => moment.unix(t).utc().format());
         const deltaUnit = this.ebvDataLoadingInfo.delta_unit;
         const crsCode = this.ebvDataLoadingInfo.crs_code;
 

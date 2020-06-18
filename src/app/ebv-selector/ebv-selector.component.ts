@@ -206,8 +206,8 @@ export class EbvSelectorComponent implements OnInit, OnDestroy {
 
         const ebvUnit = new Unit({
             interpolation: Interpolation.Continuous,
-            measurement: 'raw',
-            unit: 'raw',
+            measurement: Unit.defaultUnit.measurement,
+            unit: Unit.defaultUnit.unit,
             min: this.ebvDataLoadingInfo.unit_range[0],
             max: this.ebvDataLoadingInfo.unit_range[1],
         });
@@ -234,9 +234,9 @@ export class EbvSelectorComponent implements OnInit, OnDestroy {
                     crs: ebvProjectionCode
                 },
                 provenance: {
-                    citation: 'TODO',
-                    license: 'TODO',
-                    uri: 'TO.DO'
+                    citation: this.ebvDataset.name,
+                    license: this.ebvDataset.license,
+                    uri: '',
                 }
             }
         });

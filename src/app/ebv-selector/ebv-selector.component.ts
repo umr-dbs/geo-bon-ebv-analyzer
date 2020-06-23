@@ -20,9 +20,10 @@ import {
     Unit,
     UserService,
 } from '@umr-dbs/wave-core';
-import {BehaviorSubject, Subscription} from 'rxjs';
+import {BehaviorSubject, Observable, Subscription} from 'rxjs';
 import * as moment from 'moment';
 import {AppConfig} from '../app-config.service';
+import {map} from 'rxjs/operators';
 
 @Component({
     selector: 'wave-ebv-ebv-selector',
@@ -32,9 +33,9 @@ import {AppConfig} from '../app-config.service';
 })
 export class EbvSelectorComponent implements OnInit, OnDestroy {
 
-    // TODO: set higher
-    readonly SUBGROUP_SEARCH_THRESHOLD = 3;
+    readonly SUBGROUP_SEARCH_THRESHOLD = 5;
     readonly loading$ = new BehaviorSubject(true);
+    readonly isLayerLoaded$: Observable<boolean>;
 
     ebvClasses: Array<EbvClass> = undefined;
     ebvClass: EbvClass = undefined;
@@ -51,11 +52,14 @@ export class EbvSelectorComponent implements OnInit, OnDestroy {
 
     private userSubscription: Subscription = undefined;
 
-    constructor(private userService: UserService,
-                @Inject(Config) private config: AppConfig,
-                private changeDetectorRef: ChangeDetectorRef,
-                private http: HttpClient,
-                private projectService: ProjectService) {
+    constructor(private readonly userService: UserService,
+                @Inject(Config) private readonly config: AppConfig,
+                private readonly changeDetectorRef: ChangeDetectorRef,
+                private readonly http: HttpClient,
+                private readonly projectService: ProjectService) {
+        this.isLayerLoaded$ = this.projectService
+            .getLayerStream()
+            .pipe(map(layers => layers.length > 0));
     }
 
     ngOnInit() {

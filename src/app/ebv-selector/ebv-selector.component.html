@@ -53,4 +53,6 @@
     <button mat-raised-button color="primary" *ngIf="isAddButtonVisible()" (click)="showEbv()">Show</button>
 
     <mat-spinner *ngIf="loading$ | async"></mat-spinner>
+
+    <wave-ebv-indicator-plot *ngIf="isLayerLoaded$ | async"></wave-ebv-indicator-plot>
 </div>

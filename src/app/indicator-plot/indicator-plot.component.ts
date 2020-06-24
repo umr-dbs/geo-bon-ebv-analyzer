@@ -11,6 +11,7 @@ import {
 import {BehaviorSubject, concat, Observable, Subscription} from 'rxjs';
 import * as d3 from 'd3';
 import {bufferTime, flatMap, map, mergeAll, toArray, windowTime} from 'rxjs/operators';
+import { TimeService, TimeStep } from '../time-available.service';
 
 @Component({
     selector: 'wave-ebv-indicator-plot',
@@ -34,12 +35,15 @@ export class IndicatorPlotComponent implements OnInit, OnDestroy {
     private yAxis: d3.Axis<d3.AxisDomain>;
     private xAxisGroup: d3.Selection<SVGGElement, unknown, HTMLElement, any>;
     private yAxisGroup: d3.Selection<SVGGElement, unknown, HTMLElement, any>;
+    private availableTimeSteps: Array<TimeStep> | undefined = undefined;
 
     private layerSubscription: Subscription;
+    private timeSubscription: Subscription;
 
     constructor(private readonly elementRef: ElementRef,
                 private readonly projectService: ProjectService,
-                private readonly mappingQueryService: MappingQueryService) {
+                private readonly mappingQueryService: MappingQueryService,
+                private readonly timeService: TimeService) {
     }
 
     ngOnInit() {
@@ -52,14 +56,18 @@ export class IndicatorPlotComponent implements OnInit, OnDestroy {
             }
 
             const layer = layers[0] as RasterLayer<AbstractRasterSymbology>;
-            this.processQueries(layer);
+            if (this.availableTimeSteps) {
+                this.processQueries(layer, this.availableTimeSteps);
+            }
+        });
+
+        this.timeSubscription = this.timeService.availableTimeSteps.subscribe(timeSteps => {
+            this.availableTimeSteps = timeSteps;
         });
     }
 
-    private processQueries(layer: RasterLayer<AbstractRasterSymbology>) {
-        const gdalOptions = layer.operator.operatorTypeParameterOptions as GdalSourceParameterOptions;
-        const [parameterName, optionList] = gdalOptions.getParameterOptions()[0];
-
+    private processQueries(layer: RasterLayer<AbstractRasterSymbology>, timeSteps: Array<TimeStep>) {
+        const timePoints = timeSteps.map(t => t.time);
         const plotRequests: Array<Observable<PlotData>> = [];
 
         const statisticsOperatorType = new StatisticsType({
@@ -67,16 +75,13 @@ export class IndicatorPlotComponent implements OnInit, OnDestroy {
             raster_height: 1024,
         });
 
-        for (let i = optionList.firstTick; i <= optionList.lastTick; ++i) {
+        for (const timePoint of timePoints) {
             const operatorTypeOptions = {};
-            operatorTypeOptions[parameterName] = optionList.getValueForTick(i);
 
             const operator = new Operator({
                 operatorType: statisticsOperatorType,
                 projection: layer.operator.projection,
-                rasterSources: [layer.operator.cloneWithModifications({
-                    operatorType: layer.operator.operatorType.cloneWithModifications(operatorTypeOptions),
-                })],
+                rasterSources: [layer.operator],
                 resultType: ResultTypes.PLOT,
             });
 
@@ -85,7 +90,7 @@ export class IndicatorPlotComponent implements OnInit, OnDestroy {
                     extent: operator.projection.getExtent(), // TODO: fit extent to known bounds
                     operator,
                     projection: operator.projection,
-                    time: new TimePoint(0), // TODO: use time information
+                    time: timePoint, // TODO: use time information
                 })
             );
         }
@@ -101,9 +106,11 @@ export class IndicatorPlotComponent implements OnInit, OnDestroy {
                 const plotData = _plotData as any as PlotResult;
 
                 totalPlotData.push({
-                    time: timeIndex++, // TODO: use time
+                    time: timeIndex, // TODO: use time
+                    time_label: timeSteps[timeIndex].displayValue,
                     value: plotData.data.rasters[0].mean,
                 });
+                timeIndex++;
 
                 this.updateChart(totalPlotData);
             },
@@ -199,6 +206,7 @@ export class IndicatorPlotComponent implements OnInit, OnDestroy {
 
 interface DataPoint {
     time: number;
+    time_label: string | number;
     value: number;
 }
 

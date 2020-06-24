@@ -35,6 +35,7 @@ import {DomSanitizer} from '@angular/platform-browser';
 import {ActivatedRoute} from '@angular/router';
 import {AppConfig} from './app-config.service';
 import * as moment from 'moment';
+import {TimeService} from './time-available.service';
 
 @Component({
     selector: 'wave-app-root',
@@ -72,7 +73,8 @@ export class AppComponent implements OnInit, AfterViewInit {
                 private readonly activatedRoute: ActivatedRoute,
                 private readonly notificationService: NotificationService,
                 private readonly mapService: MapService,
-                private readonly sanitizer: DomSanitizer) {
+                private readonly sanitizer: DomSanitizer,
+                private readonly timeService: TimeService) {
         this.registerIcons();
 
         this.singleLayer$ = this.getFirstLayerStream();

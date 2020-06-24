@@ -24,12 +24,14 @@ import {EbvSelectorComponent} from './ebv-selector/ebv-selector.component';
 import {LegendComponent} from './legend/legend.component';
 import {NgxMatSelectSearchModule} from 'ngx-mat-select-search';
 import {FormsModule} from '@angular/forms';
+import {TimeStepSelectorComponent} from './time-step-selector/time-step-selector.component';
 
 @NgModule({
     declarations: [
         AppComponent,
         EbvSelectorComponent,
         LegendComponent,
+        TimeStepSelectorComponent,
     ],
     imports: [
         BrowserAnimationsModule,

@@ -5,12 +5,8 @@
     <div class="time-container" fxLayoutAlign="space-around center">
         <wave-zoom-handles (zoomIn)="map.zoomIn()" (zoomOut)="map.zoomOut()" class="mat-elevation-z4"></wave-zoom-handles>
         <div class="channel-as-time">
-            <wave-layer-list-workflow-parameter-slider
-                [layer]="getFirstLayerStream() | async"
-                parameterName="channelConfig"
-                parameterDisplayName="time"
-            >
-            </wave-layer-list-workflow-parameter-slider>
+            <wave-ebv-time-step-selector>
+            </wave-ebv-time-step-selector>
         </div>
         <!-- <wave-ticker-interaction *ngIf="config.COMPONENTS.PLAYBACK.AVAILABLE" class="mat-elevation-z4"></wave-ticker-interaction>-->
         <div></div> <!-- moves Time Interaction to center (cf. space-around @ flex) -->

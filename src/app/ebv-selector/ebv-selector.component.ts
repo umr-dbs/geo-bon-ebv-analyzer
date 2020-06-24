@@ -23,6 +23,9 @@ import {
 import {BehaviorSubject, Subscription} from 'rxjs';
 import * as moment from 'moment';
 import {AppConfig} from '../app-config.service';
+import {TimePoint} from '@umr-dbs/wave-core';
+import {TimeService} from '../time-available.service';
+
 
 @Component({
     selector: 'wave-ebv-ebv-selector',
@@ -55,7 +58,9 @@ export class EbvSelectorComponent implements OnInit, OnDestroy {
                 @Inject(Config) private config: AppConfig,
                 private changeDetectorRef: ChangeDetectorRef,
                 private http: HttpClient,
-                private projectService: ProjectService) {
+                private projectService: ProjectService,
+                private timeService: TimeService
+                ) {
     }
 
     ngOnInit() {
@@ -185,6 +190,20 @@ export class EbvSelectorComponent implements OnInit, OnDestroy {
         // remove layers
         this.projectService.clearLayers();
 
+        // set time
+        const timeAsMoments = timePoints.map(t => moment.unix(t).utc()); // TODO: only one map
+        const times = timeAsMoments.map(
+            m => {
+                const time = new TimePoint(m);
+                return {
+                    time,
+                    displayValue: time.toString()
+                };
+            }
+        );
+        this.timeService.setAvailableTimeSteps(times);
+        this.projectService.setTime(times[0].time);
+
         // generate a new layer
         const layer = this.generateGdalSourceNetCdfLayer();
         this.projectService.addLayer(layer);
@@ -198,6 +217,8 @@ export class EbvSelectorComponent implements OnInit, OnDestroy {
 
         const timePoints = this.ebvDataLoadingInfo.time_points;
         const readableTimePoints = timePoints.map(t => moment.unix(t).utc().format());
+        const endBound  = moment.unix(timePoints[timePoints.length - 1]).add(1, 'days');
+
         const deltaUnit = this.ebvDataLoadingInfo.delta_unit;
         const crsCode = this.ebvDataLoadingInfo.crs_code;
 
@@ -213,7 +234,7 @@ export class EbvSelectorComponent implements OnInit, OnDestroy {
         });
 
         const operatorType = new GdalSourceType({
-            channelConfig: {
+            channelConfig: { // TODO: make channel config optional
                 channelNumber: 0,
                 displayValue: (readableTimePoints.length > 0) ? readableTimePoints[0] : 'no time avaliable',
             },
@@ -229,6 +250,9 @@ export class EbvSelectorComponent implements OnInit, OnDestroy {
                         netcdf_subdataset: netCdfSubdataset,
                     };
                 }),
+                time_start: readableTimePoints[0],
+                time_end: endBound.format(),
+                channel_start_time_list: readableTimePoints,
                 file_name: path,
                 coords: {
                     crs: ebvProjectionCode

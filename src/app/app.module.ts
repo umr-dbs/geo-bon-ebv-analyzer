@@ -25,6 +25,7 @@ import {LegendComponent} from './legend/legend.component';
 import {NgxMatSelectSearchModule} from 'ngx-mat-select-search';
 import {FormsModule} from '@angular/forms';
 import { IndicatorPlotComponent } from './indicator-plot/indicator-plot.component';
+import {TimeStepSelectorComponent} from './time-step-selector/time-step-selector.component';
 
 @NgModule({
     declarations: [
@@ -32,6 +33,7 @@ import { IndicatorPlotComponent } from './indicator-plot/indicator-plot.componen
         EbvSelectorComponent,
         LegendComponent,
         IndicatorPlotComponent,
+        TimeStepSelectorComponent,
     ],
     imports: [
         BrowserAnimationsModule,

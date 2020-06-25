@@ -20,6 +20,7 @@ import {
     ResultTypes, StatisticsType,
     Unit,
     UserService,
+    Projection,
 } from '@umr-dbs/wave-core';
 import {BehaviorSubject, combineLatest, concat, Observable, Subscription} from 'rxjs';
 import * as moment from 'moment';
@@ -407,7 +408,35 @@ export class EbvSelectorComponent implements OnInit, OnDestroy {
             raster_height: Math.round(1024 * heightToWidthRatio),
         });
 
-        // TODO: add the rasterclip!
+        // the gdal source for the country raster
+        const countryOperatorType = new GdalSourceType({
+            channelConfig: {
+                channelNumber: country.tif_channel_id, // map to gdal source logic
+                displayValue: country.name,
+            },
+            sourcename: 'ne_10m_admin_0_countries_as_raster',
+            transform: false, // TODO: user selectable transform?
+        });
+
+        const countrySourceOperator = new Operator({
+            operatorType: countryOperatorType,
+            resultType: ResultTypes.RASTER,
+            projection: Projections.WGS_84,
+            attributes: ['value'],
+            dataTypes: new Map<string, DataType>().set('value', DataTypes.Byte),
+            units: new Map<string, Unit>().set('value', Unit.defaultUnit),
+        });
+
+        // TODO: REMOVE LAYER
+        const countryRasterlayer = new RasterLayer({
+            name: country.name,
+            operator: countrySourceOperator,
+            symbology: MappingRasterSymbology.createSymbology(
+                {unit: {min: 0, max: 1, measurement: 'mask', classes: [], interpolation: 1, unit: 'none'}
+            }),
+        });
+
+        this.projectService.addLayer(countryRasterlayer);
 
         const operator = new Operator({
             operatorType: statisticsOperatorType,

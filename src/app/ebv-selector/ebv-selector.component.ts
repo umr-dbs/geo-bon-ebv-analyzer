@@ -28,6 +28,7 @@ import {first, map} from 'rxjs/operators';
 import {TimePoint} from '@umr-dbs/wave-core';
 import {TimeService, TimeStep} from '../time-available.service';
 import {DataPoint} from '../indicator-plot/indicator-plot.component';
+import { CountryProviderService, Country } from '../country-provider.service';
 
 
 @Component({
@@ -70,7 +71,8 @@ export class EbvSelectorComponent implements OnInit, OnDestroy {
                 private readonly http: HttpClient,
                 private readonly projectService: ProjectService,
                 private readonly timeService: TimeService,
-                private readonly mappingQueryService: MappingQueryService) {
+                private readonly mappingQueryService: MappingQueryService,
+                private readonly countryProviderService: CountryProviderService) {
         this.isLayerLoaded$ = this.projectService
             .getLayerStream()
             .pipe(map(layers => layers.length > 0));
@@ -363,10 +365,11 @@ export class EbvSelectorComponent implements OnInit, OnDestroy {
         combineLatest([
             this.projectService.getLayerStream(),
             this.timeService.availableTimeSteps,
+            this.countryProviderService.getSelectedCountryStream()
         ]).pipe(
             first()
-        ).subscribe(([layers, timeSteps]) => {
-            if (!timeSteps || !layers || layers.length !== 1) {
+        ).subscribe(([layers, timeSteps, country]) => {
+            if (!timeSteps || !layers || layers.length !== 1 || !country) {
                 return;
             }
 
@@ -380,7 +383,7 @@ export class EbvSelectorComponent implements OnInit, OnDestroy {
             }
 
             this.plotSettings = {
-                data$: this.createPlotQueries(layer, timeSteps),
+                data$: this.createPlotQueries(layer, timeSteps, country),
                 xLimits: [0, timeSteps.length - 1],
                 yLimits: [unit.min, unit.max],
                 yLabel,
@@ -390,7 +393,11 @@ export class EbvSelectorComponent implements OnInit, OnDestroy {
         });
     }
 
-    private createPlotQueries(layer: RasterLayer<AbstractRasterSymbology>, timeSteps: Array<TimeStep>): Observable<DataPoint> {
+    private createPlotQueries(
+        layer: RasterLayer<AbstractRasterSymbology>,
+        timeSteps: Array<TimeStep>,
+        country: Country
+    ): Observable<DataPoint> {
         const plotRequests: Array<Observable<PlotData>> = [];
 
         const heightToWidthRatio = 0.5; // TODO: calculate from bounds
@@ -400,13 +407,16 @@ export class EbvSelectorComponent implements OnInit, OnDestroy {
             raster_height: Math.round(1024 * heightToWidthRatio),
         });
 
+        // TODO: add the rasterclip!
+
+        const operator = new Operator({
+            operatorType: statisticsOperatorType,
+            projection: layer.operator.projection,
+            rasterSources: [layer.operator],
+            resultType: ResultTypes.PLOT,
+        });
+
         for (const timeStep of timeSteps) {
-            const operator = new Operator({
-                operatorType: statisticsOperatorType,
-                projection: layer.operator.projection,
-                rasterSources: [layer.operator],
-                resultType: ResultTypes.PLOT,
-            });
 
             plotRequests.push(
                 this.mappingQueryService.getPlotData({

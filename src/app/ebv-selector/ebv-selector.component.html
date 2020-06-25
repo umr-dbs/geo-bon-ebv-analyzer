@@ -52,12 +52,11 @@
 
     <button mat-raised-button color="primary" *ngIf="isAddButtonVisible()" (click)="showEbv()">Show</button>
 
-    <mat-spinner *ngIf="loading$ | async"></mat-spinner>
-
-    <div>
-
+    <div *ngIf="isAddButtonVisible()">
         <wave-ebv-country-selector *ngIf="isLayerLoaded$ | async"></wave-ebv-country-selector>
     </div>
+
+    <mat-spinner *ngIf="loading$ | async"></mat-spinner>
 
     <div>
         <button mat-raised-button color="primary" *ngIf="isAddButtonVisible()" (click)="plot()">Plot</button>

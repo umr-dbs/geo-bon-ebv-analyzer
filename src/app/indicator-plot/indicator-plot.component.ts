@@ -1,17 +1,17 @@
-import {Component, OnInit, ChangeDetectionStrategy, OnDestroy, ViewChild, ElementRef} from '@angular/core';
 import {
-    AbstractRasterSymbology, GdalSourceParameterOptions,
-    MappingQueryService,
-    Operator, PlotData,
-    ProjectService,
-    RasterLayer,
-    ResultTypes,
-    StatisticsType, TimePoint
-} from '@umr-dbs/wave-core';
-import {BehaviorSubject, concat, Observable, Subscription} from 'rxjs';
+    Component,
+    OnInit,
+    ChangeDetectionStrategy,
+    OnDestroy,
+    ViewChild,
+    ElementRef,
+    Input,
+    OnChanges,
+    SimpleChanges,
+    HostListener
+} from '@angular/core';
+import {BehaviorSubject, Observable, Subscription} from 'rxjs';
 import * as d3 from 'd3';
-import {bufferTime, flatMap, map, mergeAll, toArray, windowTime} from 'rxjs/operators';
-import { TimeService, TimeStep } from '../time-available.service';
 
 @Component({
     selector: 'wave-ebv-indicator-plot',
@@ -19,179 +19,190 @@ import { TimeService, TimeStep } from '../time-available.service';
     styleUrls: ['./indicator-plot.component.scss'],
     changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class IndicatorPlotComponent implements OnInit, OnDestroy {
+export class IndicatorPlotComponent implements OnInit, OnDestroy, OnChanges {
 
-    readonly ongoingQuery$ = new BehaviorSubject<boolean>(false);
+    @Input() data: Observable<DataPoint>;
+    @Input() xLimits: [number, number];
+    @Input() yLabel: string;
+    @Input() yLimits: [number, number];
 
     @ViewChild('svg', {static: true}) private readonly svgRef: ElementRef;
+    readonly ongoingQuery$ = new BehaviorSubject<boolean>(false);
+
+    private dataSubscription: Subscription;
+
+    private readonly dataPoints: Array<DataPoint> = [];
 
     private readonly strokeWidth = 2.5;
     private readonly strokeColor = '#00796a';
+    private readonly updateDelayMs = 250;
 
-    private xScale: d3.ScaleLinear<number, number>;
-    private yScale: d3.ScaleLinear<number, number>;
+    private width: number;
+    private height: number;
+    private readonly margin = {top: 10, right: 30, bottom: 80, left: 60};
+
     private svg: d3.Selection<SVGGElement, unknown, HTMLElement, any>;
+    private xScale: d3.ScalePoint<number>;
+    private yScale: d3.ScaleLinear<number, number>;
     private xAxis: d3.Axis<d3.AxisDomain>;
     private yAxis: d3.Axis<d3.AxisDomain>;
     private xAxisGroup: d3.Selection<SVGGElement, unknown, HTMLElement, any>;
     private yAxisGroup: d3.Selection<SVGGElement, unknown, HTMLElement, any>;
-    private availableTimeSteps: Array<TimeStep> | undefined = undefined;
+    private xLabelText: d3.Selection<SVGTextElement, unknown, HTMLElement, any>;
+    private yLabelText: d3.Selection<SVGTextElement, unknown, HTMLElement, any>;
 
-    private layerSubscription: Subscription;
-    private timeSubscription: Subscription;
-
-    constructor(private readonly elementRef: ElementRef,
-                private readonly projectService: ProjectService,
-                private readonly mappingQueryService: MappingQueryService,
-                private readonly timeService: TimeService) {
+    constructor(private readonly elementRef: ElementRef) {
     }
 
     ngOnInit() {
-        // TODO: re-init on browser window size change event
         this.initChart();
-
-        this.layerSubscription = this.projectService.getLayerStream().subscribe(layers => {
-            if (layers.length !== 1) {
-                return;
-            }
-
-            const layer = layers[0] as RasterLayer<AbstractRasterSymbology>;
-            if (this.availableTimeSteps) {
-                this.processQueries(layer, this.availableTimeSteps);
-            }
-        });
-
-        this.timeSubscription = this.timeService.availableTimeSteps.subscribe(timeSteps => {
-            this.availableTimeSteps = timeSteps;
-        });
+        this.updateChart();
     }
 
-    private processQueries(layer: RasterLayer<AbstractRasterSymbology>, timeSteps: Array<TimeStep>) {
-        const timePoints = timeSteps.map(t => t.time);
-        const plotRequests: Array<Observable<PlotData>> = [];
+    ngOnChanges(changes: SimpleChanges) {
+        for (const property in changes) {
+            if (!changes.hasOwnProperty(property)) {
+                continue;
+            }
+            const value = changes[property].currentValue;
+            switch (property) {
+                case 'data':
+                    if (this.dataSubscription) {
+                        this.dataSubscription.unsubscribe();
+                    }
+                    this.dataPoints.length = 0;
 
-        const statisticsOperatorType = new StatisticsType({
-            raster_width: 1024,
-            raster_height: 1024,
-        });
+                    this.ongoingQuery$.next(true);
+                    this.dataSubscription = (value as Observable<DataPoint>).subscribe(
+                        v => {
+                            this.dataPoints.push(v);
+                            if (this.svg) {
+                                this.updateChart();
+                            }
+                        },
+                        () => {
+                        },
+                        () => this.ongoingQuery$.next(false),
+                    );
+                    break;
+                case 'xLimits':
+                    this.createOrUpdateXScale();
+                    break;
+                case 'yLabel':
+                    if (!this.yLabelText) {
+                        return;
+                    }
 
-        for (const timePoint of timePoints) {
-            const operatorTypeOptions = {};
+                    this.yLabelText.text(value);
+                    break;
+                case 'yLimits':
+                    if (!this.yScale) {
+                        return;
+                    }
 
-            const operator = new Operator({
-                operatorType: statisticsOperatorType,
-                projection: layer.operator.projection,
-                rasterSources: [layer.operator],
-                resultType: ResultTypes.PLOT,
-            });
-
-            plotRequests.push(
-                this.mappingQueryService.getPlotData({
-                    extent: operator.projection.getExtent(), // TODO: fit extent to known bounds
-                    operator,
-                    projection: operator.projection,
-                    time: timePoint, // TODO: use time information
-                })
-            );
+                    this.yScale.domain(value);
+                    break;
+            }
         }
-
-        const totalPlotData: Array<DataPoint> = [];
-        this.updateChart(totalPlotData);
-
-        this.ongoingQuery$.next(true);
-
-        let timeIndex = 0;
-        concat(...plotRequests).subscribe(
-            _plotData => {
-                const plotData = _plotData as any as PlotResult;
-
-                totalPlotData.push({
-                    time: timeIndex, // TODO: use time
-                    time_label: timeSteps[timeIndex].displayValue,
-                    value: plotData.data.rasters[0].mean,
-                });
-                timeIndex++;
-
-                this.updateChart(totalPlotData);
-            },
-            _ => {
-                // TODO: react on error
-            },
-            () => {
-                this.ongoingQuery$.next(false);
-            },
-        );
     }
 
     ngOnDestroy() {
-        this.layerSubscription.unsubscribe();
+        if (this.dataSubscription) {
+            this.dataSubscription.unsubscribe();
+        }
+    }
+
+    @HostListener('window:resize')
+    private windowResize() {
+        // delete the old plot and redraw on window resize
+        this.svgRef.nativeElement.innerHTML = '';
+        this.initChart();
+        this.updateChart();
     }
 
     private initChart() {
         // set the dimensions and margins of the graph
         const rawWidth = this.elementRef.nativeElement.clientWidth;
         const rawHeight = 0.8 * rawWidth;
-        const margin = {top: 10, right: 30, bottom: 30, left: 50};
-        const width = rawWidth - margin.left - margin.right;
-        const height = rawHeight - margin.top - margin.bottom;
+        this.width = rawWidth - this.margin.left - this.margin.right;
+        this.height = rawHeight - this.margin.top - this.margin.bottom;
 
         // setup SVG element
         this.svg = d3.select(this.svgRef.nativeElement)
-            .attr('width', width + margin.left + margin.right)
-            .attr('height', height + margin.top + margin.bottom)
+            .attr('width', this.width + this.margin.left + this.margin.right)
+            .attr('height', this.height + this.margin.top + this.margin.bottom)
             .append('g')
             .attr('transform',
-                'translate(' + margin.left + ',' + margin.top + ')');
+                'translate(' + this.margin.left + ',' + this.margin.top + ')');
 
         // init X axis
-        this.xScale = d3.scaleLinear().range([0, width]);
-        this.xAxis = d3.axisBottom(this.xScale);
+        this.createOrUpdateXScale();
+        this.xAxis = d3.axisBottom(this.xScale)
+            .tickFormat((value, index) => {
+                const dataPoint = this.dataPoints[index];
+                return dataPoint ? dataPoint.time_label : '';
+            });
         this.xAxisGroup = this.svg.append('g')
-            .attr('transform', 'translate(0,' + height + ')');
+            .attr('transform', 'translate(0,' + this.height + ')');
 
         // init Y axis
-        this.yScale = d3.scaleLinear().range([height, 0]);
+        this.yScale = d3.scaleLinear()
+            .range([this.height, 0])
+            .domain(this.yLimits);
         this.yAxis = d3.axisLeft(this.yScale);
         this.yAxisGroup = this.svg.append('g');
 
         // init axis labels
-        this.svg.append('text') // y axis label
+        this.xLabelText = this.svg.append('text')
+            .attr('text-anchor', 'end')
+            .attr('x', this.width)
+            .attr('y', this.height - 6)
+            .text('Time');
+
+        this.yLabelText = this.svg.append('text')
             .attr('transform', 'rotate(-90)')
-            .attr('y', -margin.left)
-            .attr('x', -height / 2)
+            .attr('y', -this.margin.left)
+            .attr('x', -this.height / 2)
             .attr('dy', '1em')
             .style('text-anchor', 'middle')
-            .text('Frequency'); // TODO: use unit mesurement
+            .text(this.yLabel);
     }
 
-    private updateChart(data: Array<DataPoint>) {
-        // Create the X axis:
-        this.xScale.domain([d3.min(data, d => d.time), d3.max(data, d => d.time)]);
+    private updateChart() {
+        if (this.dataPoints.length <= 0) {
+            return;
+        }
+
+        // Update the X axis:
         this.xAxisGroup
             .transition()
-            .duration(250) // TODO: use smart duration
-            .call(this.xAxis as any);
+            .duration(this.updateDelayMs)
+            .call(this.xAxis as any)
+            .selectAll('text')// rotate axis
+            .style('text-anchor', 'end')
+            .attr('dx', '-.8em')
+            .attr('dy', '.15em')
+            .attr('transform', 'rotate(-65)');
 
-        // create the Y axis
-        this.yScale.domain([d3.min(data, d => d.value), d3.max(data, d => d.value)]);
+        // Update the Y axis
         this.yAxisGroup
             .transition()
-            .duration(250) // TODO: use smart duration
+            .duration(this.updateDelayMs)
             .call(this.yAxis as any);
 
         // Create a update selection: bind to the new data
         const updateSelection = this.svg
             .selectAll('.line')
-            .data([data], (d: DataPoint) => d.time as any);
+            .data([this.dataPoints], (d: DataPoint) => d.time as any);
 
-        // Updata the line
+        // Update the line
         updateSelection
             .enter()
             .append('path')
             .attr('class', 'line')
             .merge(updateSelection as any)
             .transition()
-            .duration(250)// TODO: use smart duration
+            .duration(this.updateDelayMs)
             .attr(
                 'd',
                 d3.line()
@@ -200,25 +211,36 @@ export class IndicatorPlotComponent implements OnInit, OnDestroy {
             ).attr('fill', 'none')
             .attr('stroke', this.strokeColor)
             .attr('stroke-width', this.strokeWidth);
+
+        setTimeout(() => this.updateBottomMargin());
+    }
+
+    private updateBottomMargin() {
+        const additionalMargin = 10;
+
+        const xTicksBBox = this.xAxisGroup.selectAll<SVGTextElement, unknown>('text').node().getBBox();
+        this.margin.bottom = xTicksBBox.width + additionalMargin;
+        d3.select(this.svgRef.nativeElement)
+            .attr('width', this.width + this.margin.left + this.margin.right)
+            .attr('height', this.height + this.margin.top + this.margin.bottom);
+    }
+
+    private createOrUpdateXScale() {
+        if (!this.xScale) {
+            this.xScale = d3.scalePoint<number>();
+        }
+
+        const upperLimit = this.xLimits[1];
+
+        this.xScale
+            .range([0, this.width])
+            .domain([...Array(upperLimit + 1).keys()]);
     }
 
 }
 
-interface DataPoint {
+export interface DataPoint {
     time: number;
-    time_label: string | number;
+    time_label: string;
     value: number;
-}
-
-interface PlotResult {
-    type: 'LayerStatistics';
-    data: {
-        rasters: Array<{
-            count: number,
-            max: number,
-            mean: number,
-            min: number,
-            nan_count: number,
-        }>,
-    };
 }

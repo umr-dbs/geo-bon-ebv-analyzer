@@ -1,31 +1,33 @@
 import {ChangeDetectionStrategy, ChangeDetectorRef, Component, Inject, OnDestroy, OnInit} from '@angular/core';
 import {HttpClient} from '@angular/common/http';
 import {
+    AbstractRasterSymbology,
     Config,
     DataType,
     DataTypes,
     GdalSourceParameterOptions,
     GdalSourceType,
     Interpolation,
-    Layer,
+    Layer, MappingQueryService,
     MappingRasterSymbology,
     MappingRequestParameters,
     Operator,
     ParameterOptionType,
-    ParametersType,
+    ParametersType, PlotData,
     Projections,
     ProjectService,
     RasterLayer,
-    ResultTypes,
+    ResultTypes, StatisticsType,
     Unit,
     UserService,
 } from '@umr-dbs/wave-core';
-import {BehaviorSubject, Observable, Subscription} from 'rxjs';
+import {BehaviorSubject, combineLatest, concat, Observable, Subscription} from 'rxjs';
 import * as moment from 'moment';
 import {AppConfig} from '../app-config.service';
-import {map} from 'rxjs/operators';
+import {first, map} from 'rxjs/operators';
 import {TimePoint} from '@umr-dbs/wave-core';
-import {TimeService} from '../time-available.service';
+import {TimeService, TimeStep} from '../time-available.service';
+import {DataPoint} from '../indicator-plot/indicator-plot.component';
 
 
 @Component({
@@ -51,6 +53,13 @@ export class EbvSelectorComponent implements OnInit, OnDestroy {
     ebvSubgroupValueOptions$: Array<Array<EbvSubgroupValue>> = [];
     ebvSubgroupValues: Array<EbvSubgroupValue> = [];
 
+    plotSettings: {
+        data$: Observable<DataPoint>,
+        xLimits: [number, number],
+        yLimits: [number, number],
+        yLabel: string,
+    } = undefined;
+
     private ebvDataLoadingInfo: EbvDataLoadingInfo = undefined;
 
     private userSubscription: Subscription = undefined;
@@ -60,7 +69,8 @@ export class EbvSelectorComponent implements OnInit, OnDestroy {
                 private readonly changeDetectorRef: ChangeDetectorRef,
                 private readonly http: HttpClient,
                 private readonly projectService: ProjectService,
-                private readonly timeService: TimeService) {
+                private readonly timeService: TimeService,
+                private readonly mappingQueryService: MappingQueryService) {
         this.isLayerLoaded$ = this.projectService
             .getLayerStream()
             .pipe(map(layers => layers.length > 0));
@@ -220,17 +230,24 @@ export class EbvSelectorComponent implements OnInit, OnDestroy {
 
         const timePoints = this.ebvDataLoadingInfo.time_points;
         const readableTimePoints = timePoints.map(t => moment.unix(t).utc().format());
-        const endBound  = moment.unix(timePoints[timePoints.length - 1]).add(1, 'days');
+        const endBound = moment.unix(timePoints[timePoints.length - 1]).add(1, 'days');
 
-        const deltaUnit = this.ebvDataLoadingInfo.delta_unit;
+        const deltaUnit = this.ebvDataLoadingInfo.delta_unit; // TODO: incorporate delta to time formatting
         const crsCode = this.ebvDataLoadingInfo.crs_code;
 
         const ebvDataTypeCode = 'Float32';
         const ebvProjectionCode = crsCode ? crsCode : Projections.WGS_84.getCode();
 
+        let measurement = Unit.defaultUnit.measurement;
+        const metricSubgroupIndex = this.ebvSubgroups.findIndex(subgroup => subgroup.name.toLowerCase() === 'metric');
+        if (metricSubgroupIndex >= 0) {
+            const metricValue = this.ebvSubgroupValues[metricSubgroupIndex];
+            measurement = metricValue.name;
+        }
+
         const ebvUnit = new Unit({
             interpolation: Interpolation.Continuous,
-            measurement: Unit.defaultUnit.measurement,
+            measurement,
             unit: Unit.defaultUnit.unit,
             min: this.ebvDataLoadingInfo.unit_range[0],
             max: this.ebvDataLoadingInfo.unit_range[1],
@@ -242,7 +259,7 @@ export class EbvSelectorComponent implements OnInit, OnDestroy {
                 displayValue: (readableTimePoints.length > 0) ? readableTimePoints[0] : 'no time avaliable',
             },
             sourcename: this.ebvDataset.name,
-            transform: false, // TODO: user selectable transform?
+            transform: false,
             gdal_params: {
                 channels: timePoints.map((t, i) => {
                     return {
@@ -286,9 +303,9 @@ export class EbvSelectorComponent implements OnInit, OnDestroy {
             operatorTypeParameterOptions: operatorParameterOptions,
             resultType: ResultTypes.RASTER,
             projection: Projections.fromCode(ebvProjectionCode),
-            attributes: ['value'],
-            dataTypes: new Map<string, DataType>().set('value', DataTypes.fromCode(ebvDataTypeCode)),
-            units: new Map<string, Unit>().set('value', ebvUnit),
+            attributes: [Operator.RASTER_ATTRIBTE_NAME],
+            dataTypes: new Map<string, DataType>().set(Operator.RASTER_ATTRIBTE_NAME, DataTypes.fromCode(ebvDataTypeCode)),
+            units: new Map<string, Unit>().set(Operator.RASTER_ATTRIBTE_NAME, ebvUnit),
         });
 
         return new RasterLayer<MappingRasterSymbology>({
@@ -340,6 +357,78 @@ export class EbvSelectorComponent implements OnInit, OnDestroy {
                     this.ebvDataLoadingInfo = undefined;
                 }
         }
+    }
+
+    plot() {
+        combineLatest([
+            this.projectService.getLayerStream(),
+            this.timeService.availableTimeSteps,
+        ]).pipe(
+            first()
+        ).subscribe(([layers, timeSteps]) => {
+            if (!timeSteps || !layers || layers.length !== 1) {
+                return;
+            }
+
+            const layer = layers[0] as RasterLayer<AbstractRasterSymbology>;
+
+            const unit = layer.operator.getUnit(Operator.RASTER_ATTRIBTE_NAME);
+
+            let yLabel = '';
+            if (unit.measurement !== Unit.defaultUnit.measurement) {
+                yLabel = `Mean value of »${unit.measurement}«`;
+            }
+
+            this.plotSettings = {
+                data$: this.createPlotQueries(layer, timeSteps),
+                xLimits: [0, timeSteps.length - 1],
+                yLimits: [unit.min, unit.max],
+                yLabel,
+            };
+
+            this.changeDetectorRef.markForCheck();
+        });
+    }
+
+    private createPlotQueries(layer: RasterLayer<AbstractRasterSymbology>, timeSteps: Array<TimeStep>): Observable<DataPoint> {
+        const plotRequests: Array<Observable<PlotData>> = [];
+
+        const heightToWidthRatio = 0.5; // TODO: calculate from bounds
+
+        const statisticsOperatorType = new StatisticsType({
+            raster_width: 1024,
+            raster_height: Math.round(1024 * heightToWidthRatio),
+        });
+
+        for (const timeStep of timeSteps) {
+            const operator = new Operator({
+                operatorType: statisticsOperatorType,
+                projection: layer.operator.projection,
+                rasterSources: [layer.operator],
+                resultType: ResultTypes.PLOT,
+            });
+
+            plotRequests.push(
+                this.mappingQueryService.getPlotData({
+                    extent: operator.projection.getExtent(), // TODO: fit extent to known bounds
+                    operator,
+                    projection: operator.projection,
+                    time: timeStep.time,
+                })
+            );
+        }
+
+        return concat(...plotRequests).pipe(
+            map((_plotData, timeIndex) => {
+                const plotData = _plotData as any as PlotResult;
+
+                return {
+                    time: timeIndex,
+                    time_label: timeSteps[timeIndex].displayValue,
+                    value: plotData.data.rasters[0].mean,
+                };
+            }),
+        );
     }
 }
 
@@ -394,4 +483,17 @@ interface EbvDataLoadingInfo {
     delta_unit: string;
     crs_code: string;
     unit_range: [number, number];
+}
+
+interface PlotResult {
+    type: 'LayerStatistics';
+    data: {
+        rasters: Array<{
+            count: number,
+            max: number,
+            mean: number,
+            min: number,
+            nan_count: number,
+        }>,
+    };
 }

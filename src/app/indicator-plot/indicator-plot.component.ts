@@ -1,17 +1,16 @@
 import {Component, OnInit, ChangeDetectionStrategy, OnDestroy, ViewChild, ElementRef} from '@angular/core';
 import {
-    AbstractRasterSymbology, GdalSourceParameterOptions,
+    AbstractRasterSymbology,
     MappingQueryService,
     Operator, PlotData,
     ProjectService,
     RasterLayer,
     ResultTypes,
-    StatisticsType, TimePoint
+    StatisticsType
 } from '@umr-dbs/wave-core';
 import {BehaviorSubject, concat, Observable, Subscription} from 'rxjs';
 import * as d3 from 'd3';
-import {bufferTime, flatMap, map, mergeAll, toArray, windowTime} from 'rxjs/operators';
-import { TimeService, TimeStep } from '../time-available.service';
+import {TimeService, TimeStep} from '../time-available.service';
 
 @Component({
     selector: 'wave-ebv-indicator-plot',
@@ -125,6 +124,7 @@ export class IndicatorPlotComponent implements OnInit, OnDestroy {
 
     ngOnDestroy() {
         this.layerSubscription.unsubscribe();
+        this.timeSubscription.unsubscribe();
     }
 
     private initChart() {

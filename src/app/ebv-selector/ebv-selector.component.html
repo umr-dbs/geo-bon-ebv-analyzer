@@ -54,5 +54,7 @@
 
     <mat-spinner *ngIf="loading$ | async"></mat-spinner>
 
+    <wave-ebv-country-selector *ngIf="isLayerLoaded$ | async"></wave-ebv-country-selector>
+
     <wave-ebv-indicator-plot *ngIf="isLayerLoaded$ | async"></wave-ebv-indicator-plot>
 </div>

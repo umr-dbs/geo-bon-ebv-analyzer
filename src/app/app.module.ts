@@ -26,6 +26,7 @@ import {NgxMatSelectSearchModule} from 'ngx-mat-select-search';
 import {FormsModule} from '@angular/forms';
 import { IndicatorPlotComponent } from './indicator-plot/indicator-plot.component';
 import {TimeStepSelectorComponent} from './time-step-selector/time-step-selector.component';
+import {CountrySelectorComponent} from './country-selector/country-selector.component';
 
 @NgModule({
     declarations: [
@@ -34,6 +35,7 @@ import {TimeStepSelectorComponent} from './time-step-selector/time-step-selector
         LegendComponent,
         IndicatorPlotComponent,
         TimeStepSelectorComponent,
+        CountrySelectorComponent,
     ],
     imports: [
         BrowserAnimationsModule,

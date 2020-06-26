@@ -31,8 +31,6 @@ export class CountrySelectorComponent implements OnInit, AfterViewInit, OnDestro
     }
 
     ngOnInit() {
-        // TODO: handle subscriptions properly
-
         this.countryCtrl.valueChanges
             .pipe(takeUntil(this._onDestroy))
             .subscribe(value => {

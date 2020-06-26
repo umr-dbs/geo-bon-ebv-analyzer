@@ -11,7 +11,10 @@ import {
     Projections, ProjectService,
     RasterLayer,
     ResultTypes,
-    Unit
+    Unit,
+    OgrSourceType,
+    VectorSymbology,
+    VectorLayer
 } from '@umr-dbs/wave-core';
 
 export interface Country {
@@ -31,11 +34,12 @@ export class CountryProviderService {
     public readonly selectedCountry$ = new BehaviorSubject<Country>(undefined);
     public readonly availabeCountries: Array<Country>;
 
-    private layer: Layer<AbstractSymbology>;
+    private rasterLayer: Layer<AbstractSymbology>;
+    private vectorLayer: Layer<AbstractSymbology>;
 
     constructor(private readonly projectService: ProjectService) {
         this.availabeCountries = COUNTRY_LIST.map(r => {
-            const [name, minx, maxx, miny, maxy, tif_channel_id] = r;
+            const [name, maxx, maxy, minx, miny, tif_channel_id] = r;
             return {
                 name,
                 minx,
@@ -47,7 +51,7 @@ export class CountryProviderService {
         });
     }
 
-    public replaceLayerOnMap() {
+    public replaceRasterLayerOnMap() {
         const country = this.selectedCountry$.value;
         if (!country) {
             return;
@@ -60,7 +64,7 @@ export class CountryProviderService {
                 displayValue: country.name,
             },
             sourcename: 'ne_10m_admin_0_countries_as_raster',
-            transform: false, // TODO: user selectable transform?
+            transform: false,
         });
 
         const countrySourceOperator = new Operator({
@@ -72,7 +76,6 @@ export class CountryProviderService {
             units: new Map<string, Unit>().set('value', Unit.defaultUnit),
         });
 
-        // TODO: change to polygon
         const newLayer = new RasterLayer({
             name: country.name,
             operator: countrySourceOperator,
@@ -82,22 +85,64 @@ export class CountryProviderService {
                 }),
         });
 
-        if (this.layer) {
+        if (this.rasterLayer) {
             try {
-                this.projectService.removeLayer(this.layer);
+                this.projectService.removeLayer(this.rasterLayer);
             } catch (e) {
                 // TODO: rule out that this can fail
             }
         }
         this.projectService.addLayer(newLayer);
-        this.layer = newLayer;
+        this.rasterLayer = newLayer;
+    }
+
+    public replaceVectorLayerOnMap() {
+        const country = this.selectedCountry$.value;
+        if (!country) {
+            return;
+        }
+
+        // the gdal source for the country raster
+        const countryOperatorType = new OgrSourceType({
+            dataset_id: 'ne_10m_admin_0_countries_as layer_by_rasterid',
+            layer_id: 'feature_' + country.tif_channel_id,
+            numeric: [],
+            textual: []
+        });
+
+        const countrySourceOperator = new Operator({
+            operatorType: countryOperatorType,
+            resultType: ResultTypes.POLYGONS,
+            projection: Projections.WGS_84,
+            attributes: ['value'],
+            dataTypes: new Map<string, DataType>().set('tif_channel_id', DataTypes.Float32).set('NAME', DataTypes.Alphanumeric),
+            units: new Map<string, Unit>().set('tif_chn_id', Unit.defaultUnit).set('NAME', Unit.defaultUnit),
+        });
+
+        const newLayer = new VectorLayer({
+            name: country.name,
+            operator: countrySourceOperator,
+            symbology: VectorSymbology.createSymbology({
+                fillRGBA: {r: 0, g: 0, b: 0, a: 0},
+                strokeRGBA: {r: 255, g: 0, b: 0, a: 1},
+                strokeWidth: 3,
+            })
+        });
+
+        if (this.vectorLayer) {
+            try {
+                this.projectService.removeLayer(this.vectorLayer);
+            } catch (e) {
+                // TODO: rule out that this can fail
+            }
+        }
+        this.projectService.addLayer(newLayer);
+        this.vectorLayer = newLayer;
     }
 
     public setSelectedCountry(country: Country) {
-        // TODO: remove debug log
-        console.log('CountryProviderService', 'set', country);
         this.selectedCountry$.next(country);
-        this.replaceLayerOnMap();
+        this.replaceVectorLayerOnMap();
     }
 
     public clearSelectedCountry() {
@@ -105,8 +150,6 @@ export class CountryProviderService {
     }
 
     public getSelectedCountryStream(): Observable<Country> {
-        // TODO: remove debug log
-        console.log('CountryProviderService', 'getSelectedCountryStream');
         return this.selectedCountry$;
     }
 }

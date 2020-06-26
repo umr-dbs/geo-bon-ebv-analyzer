@@ -100,9 +100,15 @@ export class AppComponent implements OnInit, AfterViewInit {
     getFirstLayerStream(): Observable<Layer<AbstractSymbology> | undefined> {
         return this.projectService.getLayerStream().pipe(
             map(layers => {
-                    if (layers && layers.length > 0) {
-                        return layers[0];
+                    if (!layers) {
+                        return undefined;
                     }
+                    for (const layer of layers) {
+                        if (layer.getLayerType() === 'raster') {
+                            return layer;
+                        }
+                    }
+
                     return undefined;
                 },
                 distinctUntilChanged())

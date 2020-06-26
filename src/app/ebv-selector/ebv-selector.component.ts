@@ -20,6 +20,8 @@ import {
     ResultTypes, StatisticsType,
     Unit,
     UserService,
+    ExpressionType,
+
 } from '@umr-dbs/wave-core';
 import {BehaviorSubject, combineLatest, concat, Observable, Subscription} from 'rxjs';
 import * as moment from 'moment';
@@ -214,10 +216,6 @@ export class EbvSelectorComponent implements OnInit, OnDestroy {
             };
         });
 
-        // TODO: delete log
-        console.log('load', path, netCdfSubdataset);
-        console.log('display', timeSteps, 'in', deltaUnit);
-
         this.projectService.clearLayers();
         this.timeService.setAvailableTimeSteps(timeSteps);
         this.projectService.setTime(timeSteps[0].time);
@@ -225,7 +223,7 @@ export class EbvSelectorComponent implements OnInit, OnDestroy {
         this.ebvLayer = this.generateGdalSourceNetCdfLayer();
         this.projectService.addLayer(this.ebvLayer);
 
-        this.countryProviderService.replaceLayerOnMap();
+        this.countryProviderService.replaceVectorLayerOnMap();
 
         this.scrollToBottom();
     }
@@ -242,7 +240,7 @@ export class EbvSelectorComponent implements OnInit, OnDestroy {
         const deltaUnit = this.ebvDataLoadingInfo.delta_unit; // TODO: incorporate delta to time formatting
         const crsCode = this.ebvDataLoadingInfo.crs_code;
 
-        const ebvDataTypeCode = 'Float32';
+        const ebvDataTypeCode = 'Float64';
         const ebvProjectionCode = crsCode ? crsCode : Projections.WGS_84.getCode();
 
         let measurement = Unit.defaultUnit.measurement;
@@ -418,17 +416,63 @@ export class EbvSelectorComponent implements OnInit, OnDestroy {
     ): Observable<DataPoint> {
         const plotRequests: Array<Observable<PlotData>> = [];
 
-        const heightToWidthRatio = 0.5; // TODO: calculate from bounds
+        let requestWidth = 1024;
+        let requestHeight = 1024;
+
+        const xCoordWidth = Math.abs(country.maxx - country.minx);
+        const yCoordWidth = Math.abs(country.maxy - country.miny);
+
+        if (xCoordWidth > yCoordWidth ) {
+            requestHeight = Math.ceil(requestHeight * (yCoordWidth / xCoordWidth));
+        } else if (yCoordWidth > xCoordWidth ) {
+            requestWidth = Math.ceil(requestWidth * (xCoordWidth / yCoordWidth));
+        }
+
+        // the gdal source for the country raster
+        const countryOperatorType = new GdalSourceType({
+            channelConfig: {
+                channelNumber: country.tif_channel_id, // map to gdal source logic
+                displayValue: country.name,
+            },
+            sourcename: 'ne_10m_admin_0_countries_as_raster',
+            transform: false,
+        });
+
+        const countrySourceOperator = new Operator({
+            operatorType: countryOperatorType,
+            resultType: ResultTypes.RASTER,
+            projection: Projections.WGS_84,
+            attributes: [Operator.RASTER_ATTRIBTE_NAME],
+            dataTypes: new Map<string, DataType>().set(Operator.RASTER_ATTRIBTE_NAME, DataTypes.Byte),
+            units: new Map<string, Unit>().set(Operator.RASTER_ATTRIBTE_NAME, Unit.defaultUnit),
+        });
+
+        const clipOperator = new Operator({
+            attributes: layer.operator.attributes,
+            dataTypes: layer.operator.dataTypes,
+            operatorType: new ExpressionType({
+                datatype: layer.operator.dataTypes.get(Operator.RASTER_ATTRIBTE_NAME),
+                expression: 'B != 0 ? A : NAN',
+                unit: layer.operator.units.get(Operator.RASTER_ATTRIBTE_NAME),
+            }),
+            projection: countrySourceOperator.projection,
+            rasterSources: [
+                layer.operator.getProjectedOperator(countrySourceOperator.projection),
+                countrySourceOperator, // the mask layer
+            ],
+            resultType: layer.operator.resultType,
+            units: layer.operator.units
+        });
 
         const statisticsOperatorType = new StatisticsType({
-            raster_width: 1024,
-            raster_height: Math.round(1024 * heightToWidthRatio),
+            raster_width: requestWidth,
+            raster_height: requestHeight,
         });
 
         const operator = new Operator({
             operatorType: statisticsOperatorType,
-            projection: layer.operator.projection,
-            rasterSources: [layer.operator],
+            projection: clipOperator.projection,
+            rasterSources: [clipOperator],
             resultType: ResultTypes.PLOT,
         });
 

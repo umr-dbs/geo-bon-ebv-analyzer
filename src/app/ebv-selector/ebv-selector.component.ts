@@ -449,9 +449,9 @@ export class EbvSelectorComponent implements OnInit, OnDestroy {
 
             plotRequests.push(
                 this.mappingQueryService.getPlotData({
-                    extent: operator.projection.getExtent(), // TODO: fit extent to known bounds
+                    extent: [country.minx, country.miny, country.maxx, country.maxy],
                     operator,
-                    projection: operator.projection,
+                    projection: Projections.WGS_84,
                     time: timeStep.time,
                 })
             );

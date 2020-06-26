@@ -1,4 +1,4 @@
-import {ChangeDetectionStrategy, ChangeDetectorRef, Component, Inject, OnDestroy, OnInit} from '@angular/core';
+import {ChangeDetectionStrategy, ChangeDetectorRef, Component, ElementRef, Inject, OnDestroy, OnInit, ViewChild} from '@angular/core';
 import {HttpClient} from '@angular/common/http';
 import {
     AbstractRasterSymbology,
@@ -20,7 +20,6 @@ import {
     ResultTypes, StatisticsType,
     Unit,
     UserService,
-    Projection,
 } from '@umr-dbs/wave-core';
 import {BehaviorSubject, combineLatest, concat, Observable, Subscription} from 'rxjs';
 import * as moment from 'moment';
@@ -29,7 +28,7 @@ import {first, map} from 'rxjs/operators';
 import {TimePoint} from '@umr-dbs/wave-core';
 import {TimeService, TimeStep} from '../time-available.service';
 import {DataPoint} from '../indicator-plot/indicator-plot.component';
-import { CountryProviderService, Country } from '../country-provider.service';
+import {CountryProviderService, Country} from '../country-provider.service';
 
 
 @Component({
@@ -41,8 +40,12 @@ import { CountryProviderService, Country } from '../country-provider.service';
 export class EbvSelectorComponent implements OnInit, OnDestroy {
 
     readonly SUBGROUP_SEARCH_THRESHOLD = 5;
+
+    @ViewChild('container', {static: true})
+    readonly containerDiv: ElementRef<HTMLDivElement>;
+
+    readonly isPlotButtonDisabled$: Observable<boolean>;
     readonly loading$ = new BehaviorSubject(true);
-    readonly isLayerLoaded$: Observable<boolean>;
 
     ebvClasses: Array<EbvClass> = undefined;
     ebvClass: EbvClass = undefined;
@@ -53,8 +56,10 @@ export class EbvSelectorComponent implements OnInit, OnDestroy {
     ebvSubgroups: Array<EbvSubgroup> = undefined;
     ebvSubgroupValueOptions: Array<Array<EbvSubgroupValue>> = [];
     ebvSubgroupValueOptions$: Array<Array<EbvSubgroupValue>> = [];
+
     ebvSubgroupValues: Array<EbvSubgroupValue> = [];
 
+    ebvLayer: RasterLayer<AbstractRasterSymbology>;
     plotSettings: {
         data$: Observable<DataPoint>,
         xLimits: [number, number],
@@ -63,7 +68,6 @@ export class EbvSelectorComponent implements OnInit, OnDestroy {
     } = undefined;
 
     private ebvDataLoadingInfo: EbvDataLoadingInfo = undefined;
-
     private userSubscription: Subscription = undefined;
 
     constructor(private readonly userService: UserService,
@@ -74,9 +78,9 @@ export class EbvSelectorComponent implements OnInit, OnDestroy {
                 private readonly timeService: TimeService,
                 private readonly mappingQueryService: MappingQueryService,
                 private readonly countryProviderService: CountryProviderService) {
-        this.isLayerLoaded$ = this.projectService
-            .getLayerStream()
-            .pipe(map(layers => layers.length > 0));
+        this.isPlotButtonDisabled$ = this.countryProviderService.getSelectedCountryStream().pipe(
+            map(country => !country),
+        );
     }
 
     ngOnInit() {
@@ -151,6 +155,8 @@ export class EbvSelectorComponent implements OnInit, OnDestroy {
         const ebv_path = this.ebvDataset.dataset_path;
 
         if (subgroupIndex === this.ebvSubgroups.length - 1) { // entity is selected
+            this.clearAfter('ebvEntity');
+
             this.request<EbvDataLoadingInfo>('data_loading_info', {
                 ebv_path,
                 ebv_entity_path: this.ebvSubgroupValues.map(value => value.name).join('/'),
@@ -199,31 +205,29 @@ export class EbvSelectorComponent implements OnInit, OnDestroy {
         const timePoints = this.ebvDataLoadingInfo.time_points;
         const deltaUnit = this.ebvDataLoadingInfo.delta_unit;
 
+        const timeSteps = timePoints.map(t => {
+            const time = moment.unix(t).utc();
+            const timePoint = new TimePoint(time);
+            return {
+                time: timePoint,
+                displayValue: timePoint.toString()
+            };
+        });
+
         // TODO: delete log
         console.log('load', path, netCdfSubdataset);
-        console.log('display', timePoints.map(t => moment.unix(t).utc().format()), 'in', deltaUnit);
+        console.log('display', timeSteps, 'in', deltaUnit);
 
-        // remove layers
         this.projectService.clearLayers();
+        this.timeService.setAvailableTimeSteps(timeSteps);
+        this.projectService.setTime(timeSteps[0].time);
 
-        // set time
-        const timeAsMoments = timePoints.map(t => moment.unix(t).utc()); // TODO: only one map
-        const times = timeAsMoments.map(
-            m => {
-                const time = new TimePoint(m);
-                return {
-                    time,
-                    displayValue: time.toString()
-                };
-            }
-        );
-        this.timeService.setAvailableTimeSteps(times);
-        this.projectService.setTime(times[0].time);
+        this.ebvLayer = this.generateGdalSourceNetCdfLayer();
+        this.projectService.addLayer(this.ebvLayer);
 
-        // generate a new layer
-        const layer = this.generateGdalSourceNetCdfLayer();
-        this.projectService.addLayer(layer);
+        this.countryProviderService.replaceLayerOnMap();
 
+        this.scrollToBottom();
     }
 
     private generateGdalSourceNetCdfLayer(): Layer<MappingRasterSymbology> {
@@ -332,6 +336,8 @@ export class EbvSelectorComponent implements OnInit, OnDestroy {
 
             this.changeDetectorRef.markForCheck();
             this.loading$.next(false);
+
+            this.scrollToBottom();
         });
     }
 
@@ -351,6 +357,14 @@ export class EbvSelectorComponent implements OnInit, OnDestroy {
                 this.ebvSubgroupValueOptions.length = 0;
                 this.ebvSubgroupValueOptions$.length = 0;
                 this.ebvDataLoadingInfo = undefined;
+
+                this.ebvLayer = undefined;
+                this.plotSettings = undefined;
+
+                break;
+            case 'ebvEntity':
+                this.ebvLayer = undefined;
+                this.plotSettings = undefined;
                 break;
             default: // subgroup
                 if (subgroupIndex !== undefined) {
@@ -358,24 +372,25 @@ export class EbvSelectorComponent implements OnInit, OnDestroy {
                     this.ebvSubgroupValueOptions.length = subgroupIndex + 1;
                     this.ebvSubgroupValueOptions$.length = subgroupIndex + 1;
                     this.ebvDataLoadingInfo = undefined;
+
+                    this.ebvLayer = undefined;
+                    this.plotSettings = undefined;
                 }
         }
     }
 
     plot() {
         combineLatest([
-            this.projectService.getLayerStream(),
             this.timeService.availableTimeSteps,
-            this.countryProviderService.getSelectedCountryStream()
+            this.countryProviderService.getSelectedCountryStream(),
         ]).pipe(
             first()
-        ).subscribe(([layers, timeSteps, country]) => {
-            if (!timeSteps || !layers || layers.length !== 1 || !country) {
+        ).subscribe(([timeSteps, country]) => {
+            if (!timeSteps || !country) {
                 return;
             }
 
-            const layer = layers[0] as RasterLayer<AbstractRasterSymbology>;
-
+            const layer = this.ebvLayer;
             const unit = layer.operator.getUnit(Operator.RASTER_ATTRIBTE_NAME);
 
             let yLabel = '';
@@ -391,13 +406,15 @@ export class EbvSelectorComponent implements OnInit, OnDestroy {
             };
 
             this.changeDetectorRef.markForCheck();
+
+            this.scrollToBottom();
         });
     }
 
     private createPlotQueries(
         layer: RasterLayer<AbstractRasterSymbology>,
         timeSteps: Array<TimeStep>,
-        country: Country
+        country: Country,
     ): Observable<DataPoint> {
         const plotRequests: Array<Observable<PlotData>> = [];
 
@@ -407,36 +424,6 @@ export class EbvSelectorComponent implements OnInit, OnDestroy {
             raster_width: 1024,
             raster_height: Math.round(1024 * heightToWidthRatio),
         });
-
-        // the gdal source for the country raster
-        const countryOperatorType = new GdalSourceType({
-            channelConfig: {
-                channelNumber: country.tif_channel_id, // map to gdal source logic
-                displayValue: country.name,
-            },
-            sourcename: 'ne_10m_admin_0_countries_as_raster',
-            transform: false, // TODO: user selectable transform?
-        });
-
-        const countrySourceOperator = new Operator({
-            operatorType: countryOperatorType,
-            resultType: ResultTypes.RASTER,
-            projection: Projections.WGS_84,
-            attributes: ['value'],
-            dataTypes: new Map<string, DataType>().set('value', DataTypes.Byte),
-            units: new Map<string, Unit>().set('value', Unit.defaultUnit),
-        });
-
-        // TODO: REMOVE LAYER
-        const countryRasterlayer = new RasterLayer({
-            name: country.name,
-            operator: countrySourceOperator,
-            symbology: MappingRasterSymbology.createSymbology(
-                {unit: {min: 0, max: 1, measurement: 'mask', classes: [], interpolation: 1, unit: 'none'}
-            }),
-        });
-
-        this.projectService.addLayer(countryRasterlayer);
 
         const operator = new Operator({
             operatorType: statisticsOperatorType,
@@ -468,6 +455,13 @@ export class EbvSelectorComponent implements OnInit, OnDestroy {
                 };
             }),
         );
+    }
+
+    private scrollToBottom() {
+        setTimeout(() => {
+            const div = this.containerDiv.nativeElement;
+            div.scrollTop = div.scrollHeight;
+        });
     }
 }
 

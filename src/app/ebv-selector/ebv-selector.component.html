@@ -1,11 +1,11 @@
 <mat-toolbar color="primary">
     <div class="geobon-logo">
-        <mat-icon mat-list-icon svgIcon="geobon:logo" alt="GeoBon"></mat-icon>
+        <mat-icon mat-list-icon svgIcon="geobon:logo"></mat-icon>
         <br>
         <span class="subtitle">powered by <span class="title">VAT</span></span>
     </div>
 </mat-toolbar>
-<div class="container mat-typography">
+<div class="container mat-typography" #container>
     <mat-form-field *ngIf="ebvClasses">
         <mat-label>EBV Class</mat-label>
         <mat-select (selectionChange)="setEbvClass($event.value)">
@@ -50,16 +50,20 @@
         </ng-container>
     </ng-container>
 
-    <button mat-raised-button color="primary" *ngIf="isAddButtonVisible()" (click)="showEbv()">Show</button>
-
-    <div *ngIf="isAddButtonVisible()">
-        <wave-ebv-country-selector *ngIf="isLayerLoaded$ | async"></wave-ebv-country-selector>
-    </div>
+    <button mat-raised-button class="show" color="primary" *ngIf="isAddButtonVisible()" (click)="showEbv()">Show</button>
 
     <mat-spinner *ngIf="loading$ | async"></mat-spinner>
 
-    <div>
-        <button mat-raised-button color="primary" *ngIf="isAddButtonVisible()" (click)="plot()">Plot</button>
+    <div *ngIf="ebvLayer">
+        <mat-divider></mat-divider>
+
+        <div fxLayout="row" fxLayoutAlign="space-between start">
+            <wave-ebv-country-selector fxFlex=""></wave-ebv-country-selector>
+            <span fxFlex="1rem"></span>
+            <button mat-raised-button color="primary" [disabled]="isPlotButtonDisabled$ | async" (click)="plot()">
+                Calculate
+            </button>
+        </div>
 
         <wave-ebv-indicator-plot *ngIf="plotSettings"
                                  [data]="plotSettings.data$"
@@ -67,4 +71,7 @@
                                  [yLabel]="plotSettings.yLabel"
                                  [yLimits]="plotSettings.yLimits"></wave-ebv-indicator-plot>
     </div>
+
+    <div class="spacer"></div>
+
 </div>

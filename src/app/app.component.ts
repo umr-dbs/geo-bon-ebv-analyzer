@@ -111,7 +111,9 @@ export class AppComponent implements OnInit, AfterViewInit {
 
     ngOnInit() {
         this.mapService.registerMapComponent(this.mapComponent);
-        this.layersReverse$ = this.projectService.getLayerStream();
+        this.layersReverse$ = this.projectService.getLayerStream().pipe(
+            map(layers => layers.slice(0).reverse())
+        );
     }
 
     ngAfterViewInit() {

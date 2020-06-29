@@ -6,5 +6,5 @@
                 [tickInterval]="1"
                 [displayWith]="thumbLabelDisplay()"
                 (change)="setTime($event)"></mat-slider>
-    <span>{{currentTimestamp | async}}</span>
+    <span>{{currentTimeFormatted | async}}</span>
 </div>

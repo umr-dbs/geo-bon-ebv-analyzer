@@ -206,17 +206,19 @@ export class EbvSelectorComponent implements OnInit, OnDestroy {
 
         const timePoints = this.ebvDataLoadingInfo.time_points;
         const deltaUnit = this.ebvDataLoadingInfo.delta_unit;
+        const timeFormat = TimeService.unitToFormat(deltaUnit);
 
         const timeSteps = timePoints.map(t => {
             const time = moment.unix(t).utc();
             const timePoint = new TimePoint(time);
             return {
                 time: timePoint,
-                displayValue: timePoint.toString()
+                displayValue: time.format(timeFormat)
             };
         });
 
         this.projectService.clearLayers();
+        this.timeService.setTimeFormatFromUnit(deltaUnit);
         this.timeService.setAvailableTimeSteps(timeSteps);
         this.projectService.setTime(timeSteps[0].time);
 
@@ -228,7 +230,7 @@ export class EbvSelectorComponent implements OnInit, OnDestroy {
         this.scrollToBottom();
     }
 
-    private generateGdalSourceNetCdfLayer(): Layer<MappingRasterSymbology> {
+    private generateGdalSourceNetCdfLayer(): Layer < MappingRasterSymbology > {
 
         const path = this.ebvDataset.dataset_path;
         const netCdfSubdataset = '/' + this.ebvSubgroupValues.map(value => value.name).join('/');
@@ -250,12 +252,15 @@ export class EbvSelectorComponent implements OnInit, OnDestroy {
             measurement = metricValue.name;
         }
 
+        const min_value = this.ebvDataLoadingInfo.unit_range[0];
+        const max_value = this.ebvDataLoadingInfo.unit_range[1];
+
         const ebvUnit = new Unit({
             interpolation: Interpolation.Continuous,
             measurement,
             unit: Unit.defaultUnit.unit,
-            min: this.ebvDataLoadingInfo.unit_range[0],
-            max: this.ebvDataLoadingInfo.unit_range[1],
+            min: min_value, // removeDecimals(min_value, 2), // this removes decimals
+            max: max_value, // removeDecimals(max_value, 2),
         });
 
         const operatorType = new GdalSourceType({
@@ -339,7 +344,7 @@ export class EbvSelectorComponent implements OnInit, OnDestroy {
         });
     }
 
-    private clearAfter(field: string, subgroupIndex?: number) {
+    private clearAfter(field: string, subgroupIndex ? : number) {
         switch (field) {
             case 'ebvClass':
                 this.ebvNames = undefined;
@@ -410,11 +415,11 @@ export class EbvSelectorComponent implements OnInit, OnDestroy {
     }
 
     private createPlotQueries(
-        layer: RasterLayer<AbstractRasterSymbology>,
-        timeSteps: Array<TimeStep>,
+        layer: RasterLayer < AbstractRasterSymbology > ,
+        timeSteps: Array < TimeStep > ,
         country: Country,
-    ): Observable<DataPoint> {
-        const plotRequests: Array<Observable<PlotData>> = [];
+    ): Observable < DataPoint > {
+        const plotRequests: Array<Observable < PlotData >> = [];
 
         let requestWidth = 1024;
         let requestHeight = 1024;

@@ -1,9 +1,10 @@
 import {Component, OnInit, ChangeDetectionStrategy, Inject, ChangeDetectorRef, OnDestroy} from '@angular/core';
 import {TimeService, TimeStep} from '../time-available.service';
-import {Observable, Subscription} from 'rxjs';
+import {Observable, Subscription, combineLatest} from 'rxjs';
 import {Time, Config, ProjectService} from '@umr-dbs/wave-core';
 import {AppConfig} from '../app-config.service';
 import {MatSliderChange} from '@angular/material/slider';
+import { map } from 'rxjs/operators';
 
 @Component({
   selector: 'wave-ebv-time-step-selector',
@@ -18,6 +19,7 @@ export class TimeStepSelectorComponent implements OnInit, OnDestroy {
   readonly tickInterval = 1;
 
   readonly currentTimestamp: Observable<Time>;
+  readonly currentTimeFormatted: Observable<string>;
 
   public max = 0;
 
@@ -41,6 +43,11 @@ export class TimeStepSelectorComponent implements OnInit, OnDestroy {
     });
 
     this.currentTimestamp = this.projectService.getTimeStream();
+
+    this.currentTimeFormatted = combineLatest([this.currentTimestamp, this.timeService.timeFormat]).pipe(
+      map(([time, format]) => time.getStart().format(format))
+    );
+
   }
 
   ngOnInit() {

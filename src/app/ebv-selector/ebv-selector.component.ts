@@ -259,8 +259,8 @@ export class EbvSelectorComponent implements OnInit, OnDestroy {
             interpolation: Interpolation.Continuous,
             measurement,
             unit: Unit.defaultUnit.unit,
-            min: min_value, // removeDecimals(min_value, 2), // this removes decimals
-            max: max_value, // removeDecimals(max_value, 2),
+            min: +min_value.toPrecision(2), // use only two decimals
+            max: +max_value.toPrecision(2),
         });
 
         const operatorType = new GdalSourceType({

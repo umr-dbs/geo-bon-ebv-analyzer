@@ -1,30 +1,36 @@
-import {ChangeDetectionStrategy, ChangeDetectorRef, Component, Inject, OnDestroy, OnInit} from '@angular/core';
+import {ChangeDetectionStrategy, ChangeDetectorRef, Component, ElementRef, Inject, OnDestroy, OnInit, ViewChild} from '@angular/core';
 import {HttpClient} from '@angular/common/http';
 import {
+    AbstractRasterSymbology,
     Config,
     DataType,
     DataTypes,
     GdalSourceParameterOptions,
     GdalSourceType,
     Interpolation,
-    Layer,
+    Layer, MappingQueryService,
     MappingRasterSymbology,
     MappingRequestParameters,
     Operator,
     ParameterOptionType,
-    ParametersType,
+    ParametersType, PlotData,
     Projections,
     ProjectService,
     RasterLayer,
-    ResultTypes,
+    ResultTypes, StatisticsType,
     Unit,
     UserService,
+    ExpressionType,
+
 } from '@umr-dbs/wave-core';
-import {BehaviorSubject, Subscription} from 'rxjs';
+import {BehaviorSubject, combineLatest, concat, Observable, Subscription} from 'rxjs';
 import * as moment from 'moment';
 import {AppConfig} from '../app-config.service';
+import {first, map} from 'rxjs/operators';
 import {TimePoint} from '@umr-dbs/wave-core';
-import {TimeService} from '../time-available.service';
+import {TimeService, TimeStep} from '../time-available.service';
+import {DataPoint} from '../indicator-plot/indicator-plot.component';
+import {CountryProviderService, Country} from '../country-provider.service';
 
 
 @Component({
@@ -35,8 +41,12 @@ import {TimeService} from '../time-available.service';
 })
 export class EbvSelectorComponent implements OnInit, OnDestroy {
 
-    // TODO: set higher
-    readonly SUBGROUP_SEARCH_THRESHOLD = 3;
+    readonly SUBGROUP_SEARCH_THRESHOLD = 5;
+
+    @ViewChild('container', {static: true})
+    readonly containerDiv: ElementRef<HTMLDivElement>;
+
+    readonly isPlotButtonDisabled$: Observable<boolean>;
     readonly loading$ = new BehaviorSubject(true);
 
     ebvClasses: Array<EbvClass> = undefined;
@@ -48,19 +58,31 @@ export class EbvSelectorComponent implements OnInit, OnDestroy {
     ebvSubgroups: Array<EbvSubgroup> = undefined;
     ebvSubgroupValueOptions: Array<Array<EbvSubgroupValue>> = [];
     ebvSubgroupValueOptions$: Array<Array<EbvSubgroupValue>> = [];
+
     ebvSubgroupValues: Array<EbvSubgroupValue> = [];
 
-    private ebvDataLoadingInfo: EbvDataLoadingInfo = undefined;
+    ebvLayer: RasterLayer<AbstractRasterSymbology>;
+    plotSettings: {
+        data$: Observable<DataPoint>,
+        xLimits: [number, number],
+        yLimits: [number, number],
+        yLabel: string,
+    } = undefined;
 
+    private ebvDataLoadingInfo: EbvDataLoadingInfo = undefined;
     private userSubscription: Subscription = undefined;
 
-    constructor(private userService: UserService,
-                @Inject(Config) private config: AppConfig,
-                private changeDetectorRef: ChangeDetectorRef,
-                private http: HttpClient,
-                private projectService: ProjectService,
-                private timeService: TimeService
-                ) {
+    constructor(private readonly userService: UserService,
+                @Inject(Config) private readonly config: AppConfig,
+                private readonly changeDetectorRef: ChangeDetectorRef,
+                private readonly http: HttpClient,
+                private readonly projectService: ProjectService,
+                private readonly timeService: TimeService,
+                private readonly mappingQueryService: MappingQueryService,
+                private readonly countryProviderService: CountryProviderService) {
+        this.isPlotButtonDisabled$ = this.countryProviderService.getSelectedCountryStream().pipe(
+            map(country => !country),
+        );
     }
 
     ngOnInit() {
@@ -135,6 +157,8 @@ export class EbvSelectorComponent implements OnInit, OnDestroy {
         const ebv_path = this.ebvDataset.dataset_path;
 
         if (subgroupIndex === this.ebvSubgroups.length - 1) { // entity is selected
+            this.clearAfter('ebvEntity');
+
             this.request<EbvDataLoadingInfo>('data_loading_info', {
                 ebv_path,
                 ebv_entity_path: this.ebvSubgroupValues.map(value => value.name).join('/'),
@@ -182,55 +206,61 @@ export class EbvSelectorComponent implements OnInit, OnDestroy {
 
         const timePoints = this.ebvDataLoadingInfo.time_points;
         const deltaUnit = this.ebvDataLoadingInfo.delta_unit;
+        const timeFormat = TimeService.unitToFormat(deltaUnit);
 
-        // TODO: delete log
-        console.log('load', path, netCdfSubdataset);
-        console.log('display', timePoints.map(t => moment.unix(t).utc().format()), 'in', deltaUnit);
+        const timeSteps = timePoints.map(t => {
+            const time = moment.unix(t).utc();
+            const timePoint = new TimePoint(time);
+            return {
+                time: timePoint,
+                displayValue: time.format(timeFormat)
+            };
+        });
 
-        // remove layers
         this.projectService.clearLayers();
+        this.timeService.setTimeFormatFromUnit(deltaUnit);
+        this.timeService.setAvailableTimeSteps(timeSteps);
+        this.projectService.setTime(timeSteps[0].time);
 
-        // set time
-        const timeAsMoments = timePoints.map(t => moment.unix(t).utc()); // TODO: only one map
-        const times = timeAsMoments.map(
-            m => {
-                const time = new TimePoint(m);
-                return {
-                    time,
-                    displayValue: time.toString()
-                };
-            }
-        );
-        this.timeService.setAvailableTimeSteps(times);
-        this.projectService.setTime(times[0].time);
+        this.ebvLayer = this.generateGdalSourceNetCdfLayer();
+        this.projectService.addLayer(this.ebvLayer);
 
-        // generate a new layer
-        const layer = this.generateGdalSourceNetCdfLayer();
-        this.projectService.addLayer(layer);
+        this.countryProviderService.replaceVectorLayerOnMap();
 
+        this.scrollToBottom();
     }
 
-    private generateGdalSourceNetCdfLayer(): Layer<MappingRasterSymbology> {
+    private generateGdalSourceNetCdfLayer(): Layer < MappingRasterSymbology > {
 
         const path = this.ebvDataset.dataset_path;
         const netCdfSubdataset = '/' + this.ebvSubgroupValues.map(value => value.name).join('/');
 
         const timePoints = this.ebvDataLoadingInfo.time_points;
         const readableTimePoints = timePoints.map(t => moment.unix(t).utc().format());
-        const endBound  = moment.unix(timePoints[timePoints.length - 1]).add(1, 'days');
+        const endBound = moment.unix(timePoints[timePoints.length - 1]).add(1, 'days');
 
-        const deltaUnit = this.ebvDataLoadingInfo.delta_unit;
+        const deltaUnit = this.ebvDataLoadingInfo.delta_unit; // TODO: incorporate delta to time formatting
         const crsCode = this.ebvDataLoadingInfo.crs_code;
 
-        const ebvDataTypeCode = 'Float32';
+        const ebvDataTypeCode = 'Float64';
         const ebvProjectionCode = crsCode ? crsCode : Projections.WGS_84.getCode();
+
+        let measurement = Unit.defaultUnit.measurement;
+        const metricSubgroupIndex = this.ebvSubgroups.findIndex(subgroup => subgroup.name.toLowerCase() === 'metric');
+        if (metricSubgroupIndex >= 0) {
+            const metricValue = this.ebvSubgroupValues[metricSubgroupIndex];
+            measurement = metricValue.name;
+        }
+
+        const min_value = this.ebvDataLoadingInfo.unit_range[0];
+        const max_value = this.ebvDataLoadingInfo.unit_range[1];
 
         const ebvUnit = new Unit({
             interpolation: Interpolation.Continuous,
-            measurement: Unit.defaultUnit.measurement,
+            measurement,
             unit: Unit.defaultUnit.unit,
-            min: this.ebvDataLoadingInfo.unit_range[0],
-            max: this.ebvDataLoadingInfo.unit_range[1],
+            min: +min_value.toPrecision(2), // use only two decimals
+            max: +max_value.toPrecision(2),
         });
 
         const operatorType = new GdalSourceType({
@@ -239,7 +269,7 @@ export class EbvSelectorComponent implements OnInit, OnDestroy {
                 displayValue: (readableTimePoints.length > 0) ? readableTimePoints[0] : 'no time avaliable',
             },
             sourcename: this.ebvDataset.name,
-            transform: false, // TODO: user selectable transform?
+            transform: false,
             gdal_params: {
                 channels: timePoints.map((t, i) => {
                     return {
@@ -283,9 +313,9 @@ export class EbvSelectorComponent implements OnInit, OnDestroy {
             operatorTypeParameterOptions: operatorParameterOptions,
             resultType: ResultTypes.RASTER,
             projection: Projections.fromCode(ebvProjectionCode),
-            attributes: ['value'],
-            dataTypes: new Map<string, DataType>().set('value', DataTypes.fromCode(ebvDataTypeCode)),
-            units: new Map<string, Unit>().set('value', ebvUnit),
+            attributes: [Operator.RASTER_ATTRIBTE_NAME],
+            dataTypes: new Map<string, DataType>().set(Operator.RASTER_ATTRIBTE_NAME, DataTypes.fromCode(ebvDataTypeCode)),
+            units: new Map<string, Unit>().set(Operator.RASTER_ATTRIBTE_NAME, ebvUnit),
         });
 
         return new RasterLayer<MappingRasterSymbology>({
@@ -309,10 +339,12 @@ export class EbvSelectorComponent implements OnInit, OnDestroy {
 
             this.changeDetectorRef.markForCheck();
             this.loading$.next(false);
+
+            this.scrollToBottom();
         });
     }
 
-    private clearAfter(field: string, subgroupIndex?: number) {
+    private clearAfter(field: string, subgroupIndex ? : number) {
         switch (field) {
             case 'ebvClass':
                 this.ebvNames = undefined;
@@ -328,6 +360,14 @@ export class EbvSelectorComponent implements OnInit, OnDestroy {
                 this.ebvSubgroupValueOptions.length = 0;
                 this.ebvSubgroupValueOptions$.length = 0;
                 this.ebvDataLoadingInfo = undefined;
+
+                this.ebvLayer = undefined;
+                this.plotSettings = undefined;
+
+                break;
+            case 'ebvEntity':
+                this.ebvLayer = undefined;
+                this.plotSettings = undefined;
                 break;
             default: // subgroup
                 if (subgroupIndex !== undefined) {
@@ -335,8 +375,142 @@ export class EbvSelectorComponent implements OnInit, OnDestroy {
                     this.ebvSubgroupValueOptions.length = subgroupIndex + 1;
                     this.ebvSubgroupValueOptions$.length = subgroupIndex + 1;
                     this.ebvDataLoadingInfo = undefined;
+
+                    this.ebvLayer = undefined;
+                    this.plotSettings = undefined;
                 }
         }
+    }
+
+    plot() {
+        combineLatest([
+            this.timeService.availableTimeSteps,
+            this.countryProviderService.getSelectedCountryStream(),
+        ]).pipe(
+            first()
+        ).subscribe(([timeSteps, country]) => {
+            if (!timeSteps || !country) {
+                return;
+            }
+
+            const layer = this.ebvLayer;
+            const unit = layer.operator.getUnit(Operator.RASTER_ATTRIBTE_NAME);
+
+            let yLabel = '';
+            if (unit.measurement !== Unit.defaultUnit.measurement) {
+                yLabel = `Mean value of »${unit.measurement}«`;
+            }
+
+            this.plotSettings = {
+                data$: this.createPlotQueries(layer, timeSteps, country),
+                xLimits: [0, timeSteps.length - 1],
+                yLimits: [unit.min, unit.max],
+                yLabel,
+            };
+
+            this.changeDetectorRef.markForCheck();
+
+            this.scrollToBottom();
+        });
+    }
+
+    private createPlotQueries(
+        layer: RasterLayer < AbstractRasterSymbology > ,
+        timeSteps: Array < TimeStep > ,
+        country: Country,
+    ): Observable < DataPoint > {
+        const plotRequests: Array<Observable < PlotData >> = [];
+
+        let requestWidth = 1024;
+        let requestHeight = 1024;
+
+        const xCoordWidth = Math.abs(country.maxx - country.minx);
+        const yCoordWidth = Math.abs(country.maxy - country.miny);
+
+        if (xCoordWidth > yCoordWidth ) {
+            requestHeight = Math.ceil(requestHeight * (yCoordWidth / xCoordWidth));
+        } else if (yCoordWidth > xCoordWidth ) {
+            requestWidth = Math.ceil(requestWidth * (xCoordWidth / yCoordWidth));
+        }
+
+        // the gdal source for the country raster
+        const countryOperatorType = new GdalSourceType({
+            channelConfig: {
+                channelNumber: country.tif_channel_id, // map to gdal source logic
+                displayValue: country.name,
+            },
+            sourcename: 'ne_10m_admin_0_countries_as_raster',
+            transform: false,
+        });
+
+        const countrySourceOperator = new Operator({
+            operatorType: countryOperatorType,
+            resultType: ResultTypes.RASTER,
+            projection: Projections.WGS_84,
+            attributes: [Operator.RASTER_ATTRIBTE_NAME],
+            dataTypes: new Map<string, DataType>().set(Operator.RASTER_ATTRIBTE_NAME, DataTypes.Byte),
+            units: new Map<string, Unit>().set(Operator.RASTER_ATTRIBTE_NAME, Unit.defaultUnit),
+        });
+
+        const clipOperator = new Operator({
+            attributes: layer.operator.attributes,
+            dataTypes: layer.operator.dataTypes,
+            operatorType: new ExpressionType({
+                datatype: layer.operator.dataTypes.get(Operator.RASTER_ATTRIBTE_NAME),
+                expression: 'B != 0 ? A : NAN',
+                unit: layer.operator.units.get(Operator.RASTER_ATTRIBTE_NAME),
+            }),
+            projection: countrySourceOperator.projection,
+            rasterSources: [
+                layer.operator.getProjectedOperator(countrySourceOperator.projection),
+                countrySourceOperator, // the mask layer
+            ],
+            resultType: layer.operator.resultType,
+            units: layer.operator.units
+        });
+
+        const statisticsOperatorType = new StatisticsType({
+            raster_width: requestWidth,
+            raster_height: requestHeight,
+        });
+
+        const operator = new Operator({
+            operatorType: statisticsOperatorType,
+            projection: clipOperator.projection,
+            rasterSources: [clipOperator],
+            resultType: ResultTypes.PLOT,
+        });
+
+        for (const timeStep of timeSteps) {
+
+            plotRequests.push(
+                this.mappingQueryService.getPlotData({
+                    extent: [country.minx, country.miny, country.maxx, country.maxy],
+                    operator,
+                    projection: Projections.WGS_84,
+                    time: timeStep.time,
+                })
+            );
+        }
+
+        return concat(...plotRequests).pipe(
+            map((_plotData, timeIndex) => {
+                const plotData = _plotData as any as PlotResult;
+
+                return {
+                    time: timeIndex,
+                    time_label: timeSteps[timeIndex].displayValue,
+                    value: plotData.data.rasters[0].mean,
+                };
+            }),
+        );
+    }
+
+    private scrollToBottom() {
+        setTimeout(() => {
+            const div = this.containerDiv.nativeElement;
+            div.scrollTop = div.scrollHeight;
+        });
     }
 }
 
@@ -391,4 +565,17 @@ interface EbvDataLoadingInfo {
     delta_unit: string;
     crs_code: string;
     unit_range: [number, number];
+}
+
+interface PlotResult {
+    type: 'LayerStatistics';
+    data: {
+        rasters: Array<{
+            count: number,
+            max: number,
+            mean: number,
+            min: number,
+            nan_count: number,
+        }>,
+    };
 }

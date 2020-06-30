@@ -1,5 +1,5 @@
 import {Observable} from 'rxjs';
-import { map, distinctUntilChanged } from 'rxjs/operators';
+import {map, distinctUntilChanged, first} from 'rxjs/operators';
 import {
     AfterViewInit,
     ChangeDetectionStrategy,
@@ -74,7 +74,7 @@ export class AppComponent implements OnInit, AfterViewInit {
                 private readonly notificationService: NotificationService,
                 private readonly mapService: MapService,
                 private readonly sanitizer: DomSanitizer,
-                private readonly timeService: TimeService) {
+                private readonly _timeService: TimeService) {
         this.registerIcons();
 
         this.singleLayer$ = this.getFirstLayerStream();
@@ -100,23 +100,37 @@ export class AppComponent implements OnInit, AfterViewInit {
     getFirstLayerStream(): Observable<Layer<AbstractSymbology> | undefined> {
         return this.projectService.getLayerStream().pipe(
             map(layers => {
-                if (layers && layers.length > 0) {
-                    return layers[0];
-                }
-                return undefined;
-            },
-            distinctUntilChanged())
+                    if (!layers) {
+                        return undefined;
+                    }
+                    for (const layer of layers) {
+                        if (layer.getLayerType() === 'raster') {
+                            return layer;
+                        }
+                    }
+
+                    return undefined;
+                },
+                distinctUntilChanged())
         );
     }
 
     ngOnInit() {
         this.mapService.registerMapComponent(this.mapComponent);
-        this.layersReverse$ = this.projectService.getLayerStream();
-
-        this.projectService.setTime(new TimePoint(moment.utc()));
+        this.layersReverse$ = this.projectService.getLayerStream().pipe(
+            map(layers => layers.slice(0).reverse())
+        );
     }
 
     ngAfterViewInit() {
+        this.reset();
+    }
+
+    private reset() {
+        this.projectService.getLayerStream().pipe(first()).subscribe(() => {
+            this.projectService.clearLayers();
+            this.projectService.setTime(new TimePoint(moment.utc()));
+        });
     }
 
 }

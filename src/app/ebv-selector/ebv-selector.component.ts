@@ -21,6 +21,7 @@ import {
     Unit,
     UserService,
     ExpressionType,
+    Colormap,
 
 } from '@umr-dbs/wave-core';
 import {BehaviorSubject, combineLatest, concat, Observable, Subscription} from 'rxjs';
@@ -316,7 +317,10 @@ export class EbvSelectorComponent implements OnInit, OnDestroy {
         return new RasterLayer<MappingRasterSymbology>({
             name: this.ebvName,
             operator: sourceOperator,
-            symbology: MappingRasterSymbology.createSymbology({unit: ebvUnit}),
+            symbology: MappingRasterSymbology.createSymbology({
+                unit: ebvUnit,
+                colorizer: Colormap.createColorizerDataWithName('COOLWARM', ebvUnit.min, ebvUnit.max)
+            }),
         });
     }
 

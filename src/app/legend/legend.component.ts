@@ -1,5 +1,5 @@
 import {Component, OnInit, ChangeDetectionStrategy, Input, OnChanges, SimpleChanges, ChangeDetectorRef} from '@angular/core';
-import {MappingRasterSymbology, RasterLayer, ProjectService} from '@umr-dbs/wave-core';
+import {MappingRasterSymbology, RasterLayer} from '@umr-dbs/wave-core';
 
 @Component({
     selector: 'wave-ebv-legend',
@@ -12,6 +12,7 @@ export class LegendComponent implements OnInit, OnChanges {
 
     constructor(readonly changeDetectorRef: ChangeDetectorRef) {
     }
+
     ngOnChanges(changes: SimpleChanges): void {
         this.changeDetectorRef.markForCheck();
     }

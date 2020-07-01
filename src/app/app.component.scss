@@ -15,7 +15,7 @@ wave-layer-list {
 
 .time-container {
     position: absolute;
-    left: 16vw;
+    left: 0;
     right: 16vw;
 
     wave-ticker-interaction, wave-small-time-interaction, wave-zoom-handles, .channel-as-time {
@@ -23,6 +23,21 @@ wave-layer-list {
         border-bottom-left-radius: 2px;
         border-bottom-right-radius: 2px;
         z-index: 3;
+    }
+
+    .back-button {
+        z-index: 3;
+
+        border-radius: 0 0 2px 0;
+
+        span {
+            margin: 0 0.5rem;
+        }
+
+        img {
+            height: 1rem;
+            vertical-align: text-top;
+        }
     }
 
     .channel-as-time {

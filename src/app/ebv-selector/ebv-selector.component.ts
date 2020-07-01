@@ -201,9 +201,6 @@ export class EbvSelectorComponent implements OnInit, OnDestroy {
     }
 
     showEbv() {
-        const path = this.ebvDataset.dataset_path;
-        const netCdfSubdataset = '/' + this.ebvSubgroupValues.map(value => value.name).join('/');
-
         const timePoints = this.ebvDataLoadingInfo.time_points;
         const deltaUnit = this.ebvDataLoadingInfo.delta_unit;
         const timeFormat = TimeService.unitToFormat(deltaUnit);
@@ -231,7 +228,6 @@ export class EbvSelectorComponent implements OnInit, OnDestroy {
     }
 
     private generateGdalSourceNetCdfLayer(): Layer < MappingRasterSymbology > {
-
         const path = this.ebvDataset.dataset_path;
         const netCdfSubdataset = '/' + this.ebvSubgroupValues.map(value => value.name).join('/');
 
@@ -239,7 +235,6 @@ export class EbvSelectorComponent implements OnInit, OnDestroy {
         const readableTimePoints = timePoints.map(t => moment.unix(t).utc().format());
         const endBound = moment.unix(timePoints[timePoints.length - 1]).add(1, 'days');
 
-        const deltaUnit = this.ebvDataLoadingInfo.delta_unit; // TODO: incorporate delta to time formatting
         const crsCode = this.ebvDataLoadingInfo.crs_code;
 
         const ebvDataTypeCode = 'Float64';
@@ -344,7 +339,7 @@ export class EbvSelectorComponent implements OnInit, OnDestroy {
         });
     }
 
-    private clearAfter(field: string, subgroupIndex ? : number) {
+    private clearAfter(field: string, subgroupIndex?: number) {
         switch (field) {
             case 'ebvClass':
                 this.ebvNames = undefined;

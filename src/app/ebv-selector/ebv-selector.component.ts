@@ -1,5 +1,6 @@
 import {ChangeDetectionStrategy, ChangeDetectorRef, Component, ElementRef, Inject, OnDestroy, OnInit, ViewChild} from '@angular/core';
 import {HttpClient} from '@angular/common/http';
+// import {CookieService} from 'ngx-cookie-service';
 import {
     AbstractRasterSymbology,
     Config,
@@ -56,6 +57,7 @@ export class EbvSelectorComponent implements OnInit, OnDestroy {
     ebvName: string = undefined;
     ebvDatasets: Array<EbvDataset> = undefined;
     ebvDataset: EbvDataset = undefined;
+    ebvDatasetName: string = undefined;
     ebvSubgroups: Array<EbvSubgroup> = undefined;
     ebvSubgroupValueOptions: Array<Array<EbvSubgroupValue>> = [];
     ebvSubgroupValueOptions$: Array<Array<EbvSubgroupValue>> = [];
@@ -73,33 +75,101 @@ export class EbvSelectorComponent implements OnInit, OnDestroy {
     private ebvDataLoadingInfo: EbvDataLoadingInfo = undefined;
     private userSubscription: Subscription = undefined;
 
-    constructor(private readonly userService: UserService,
-                @Inject(Config) private readonly config: AppConfig,
-                private readonly changeDetectorRef: ChangeDetectorRef,
-                private readonly http: HttpClient,
-                private readonly projectService: ProjectService,
-                private readonly timeService: TimeService,
-                private readonly mappingQueryService: MappingQueryService,
-                private readonly countryProviderService: CountryProviderService) {
-        this.isPlotButtonDisabled$ = this.countryProviderService.getSelectedCountryStream().pipe(
-            map(country => !country),
-        );
+    // Thomas Bauer iDiv - Variables for handling ShowOnMap functionality via url parameter: id
+    private id: string = undefined;
+    private dataset: {} = undefined;
+    private subgroups_and_values: [] = undefined;
+    ebvClassAuto: EbvClass = undefined;
+    ebvNameAuto: string = undefined;
+    ebvDatasetAuto: EbvDataset = undefined;
+    ebvSubgroupsAuto: Array<EbvSubgroup> = undefined;
+    ebvSubgroupValuesAuto: Array<EbvSubgroupValue> = [];
+    // -------------------------------------------------
+
+    constructor(
+      private readonly userService: UserService,
+      @Inject(Config) private readonly config: AppConfig,
+      private readonly changeDetectorRef: ChangeDetectorRef,
+      private readonly http: HttpClient,
+      private readonly projectService: ProjectService,
+      private readonly timeService: TimeService,
+      private readonly mappingQueryService: MappingQueryService,
+      private readonly countryProviderService: CountryProviderService
+    ) {
+      this.isPlotButtonDisabled$ = this.countryProviderService.getSelectedCountryStream().pipe(
+        map(country => !country)
+      );
     }
 
     ngOnInit() {
-        // react on user changes to get new list of classes with new session token
-        // important if first user has invalid session to retry querying the catalog
+      this.getParameterById(); // fetch url and check if id is set
+      if (this.id) {
+        this.datasetAutoLoad(); // autoload first entity of dataset, if id in url is set
+      } else { // normal start up
         this.userSubscription = this.userService.getUserStream().subscribe(() => {
-            this.request<EbvClassesResponse>('classes', undefined, data => {
-                this.ebvClasses = data.classes;
-            });
+          this.request<EbvClassesResponse>('classes', undefined, data => {
+            this.ebvClasses = data.classes;
+          });
         });
+      }
     }
 
     ngOnDestroy() {
         if (this.userSubscription) {
             this.userSubscription.unsubscribe();
         }
+    }
+
+    getParameterById() {
+      const url = window.location.href;
+      const str = url.search('id=');
+      if (str !== -1) {
+        const substring = url.substring(str + 3);
+        this.id = substring;
+      }
+    }
+
+    datasetAutoLoad() {
+      this.userSubscription = this.userService.getUserStream().subscribe(() => {
+        this.request<EbvDatasetResponse>('dataset', {id: this.id}, data => {
+          this.dataset = data['dataset'];
+          this.subgroups_and_values = data['subgroups_and_values'];
+          const valueOptions = data['subgroups_and_values'].map(obj => obj.values);
+          const valueOptions$ = data['subgroups_and_values'].map(obj => obj.values.slice());
+          const firstEntity = data['subgroups_and_values'].map(obj => obj.values[0]);
+          this.ebvSubgroupValueOptions = valueOptions;
+          this.ebvSubgroupValueOptions$ = valueOptions$;
+          this.ebvSubgroupValues = firstEntity;
+          this.ebvSubgroupValuesAuto = firstEntity;
+
+          this.request<EbvClassesResponse>('classes', undefined, data2 => {
+            this.ebvClasses = data2.classes;
+            this.ebvClassAuto = this.ebvClasses.find(obj => obj.name === this.dataset['ebv'].ebvClass);
+            this.ebvNames = this.ebvClassAuto.ebv_names;
+            this.ebvNameAuto = this.dataset['ebv'].ebvName;
+          });
+          this.request<EbvDatasetsResponse>('datasets', {ebv_name: this.dataset['ebv'].ebvName}, data3 => {
+            this.ebvDatasets = data3.datasets;
+            this.ebvDatasetAuto = this.ebvDatasets.find(obj => obj.name === this.dataset['title']);
+            this.ebvDataset = this.ebvDatasetAuto;
+
+            const ebv_path = this.ebvDataset.dataset_path;
+
+            this.request<EbvSubgroupsResponse>('subgroups', {ebv_path}, data4 => {
+              this.ebvSubgroups = data4.subgroups;
+              this.request<EbvDataLoadingInfo>('data_loading_info', {
+                ebv_path,
+                ebv_entity_path: this.ebvSubgroupValuesAuto.map(value => value.name).join('/'),
+              }, data5 => {
+                  this.clearAfter('ebvEntity');
+                  this.ebvDataLoadingInfo = data5;
+                  this.showEbv();
+                });
+            });
+            this.id = undefined;
+          });
+        });
+      });
     }
 
     setEbvClass(ebvClass: EbvClass) {
@@ -129,27 +199,26 @@ export class EbvSelectorComponent implements OnInit, OnDestroy {
     }
 
     setEbvDataset(ebvDataset: EbvDataset) {
-        if (this.ebvDataset === ebvDataset) {
-            return;
-        }
+      if (this.ebvDataset === ebvDataset) {
+        return;
+      }
+      this.ebvDataset = ebvDataset;
 
-        this.ebvDataset = ebvDataset;
+      this.clearAfter('ebvDataset');
 
-        this.clearAfter('ebvDataset');
+      const ebv_path = this.ebvDataset.dataset_path;
 
-        const ebv_path = this.ebvDataset.dataset_path;
-
-        this.request<EbvSubgroupsResponse>('subgroups', {ebv_path}, data => {
-            this.request<EbvSubgroupValuesResponse>('subgroup_values', {
-                ebv_path,
-                ebv_subgroup: data.subgroups[0].name,
-                ebv_group_path: '',
-            }, value_data => {
-                this.ebvSubgroups = data.subgroups;
-                this.ebvSubgroupValueOptions = [value_data.values];
-                this.ebvSubgroupValueOptions$ = [value_data.values.slice()];
-            });
+      this.request<EbvSubgroupsResponse>('subgroups', {ebv_path}, data => {
+        this.ebvSubgroups = data.subgroups;
+        this.request<EbvSubgroupValuesResponse>('subgroup_values', {
+          ebv_path,
+          ebv_subgroup: data.subgroups[0].name,
+          ebv_group_path: '',
+        }, value_data => {
+          this.ebvSubgroupValueOptions = [value_data.values];
+          this.ebvSubgroupValueOptions$ = [value_data.values.slice()];
         });
+      });
     }
 
     setEbvSubgroupValue(subgroupIndex: number, subgroupValue: EbvSubgroupValue) {
@@ -177,8 +246,8 @@ export class EbvSelectorComponent implements OnInit, OnDestroy {
             ebv_subgroup: this.ebvSubgroups[subgroupIndex + 1].name,
             ebv_group_path: this.ebvSubgroupValues.map(value => value.name).join('/'),
         }, value_data => {
-            this.ebvSubgroupValueOptions.push(value_data.values);
-            this.ebvSubgroupValueOptions$.push(value_data.values.slice());
+          this.ebvSubgroupValueOptions.push(value_data.values);
+          this.ebvSubgroupValueOptions$.push(value_data.values.slice());
         });
     }
 
@@ -335,6 +404,7 @@ export class EbvSelectorComponent implements OnInit, OnDestroy {
         });
         this.http.get<T>(`${this.config.MAPPING_URL}?${ebvDatasetsRequest.toMessageBody()}`).subscribe(data => {
             dataCallback(data);
+            // console.log('dataMAPPING', data);
 
             this.changeDetectorRef.markForCheck();
             this.loading$.next(false);
@@ -530,11 +600,17 @@ interface EbvDataset {
     description: string;
     license: string;
     dataset_path: string;
+    ebvClass: string;
 }
 
 interface EbvDatasetsResponse {
     result: true;
     datasets: Array<EbvDataset>;
+}
+
+interface EbvDatasetResponse {
+    result: true;
+    dataset: {};
 }
 
 interface EbvSubgroup {

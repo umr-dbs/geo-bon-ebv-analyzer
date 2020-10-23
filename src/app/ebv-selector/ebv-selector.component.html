@@ -8,21 +8,21 @@
 <div class="container mat-typography" #container>
     <mat-form-field *ngIf="ebvClasses">
         <mat-label>EBV Class</mat-label>
-        <mat-select (selectionChange)="setEbvClass($event.value)">
+        <mat-select [(value)]="ebvClassAuto" (selectionChange)="setEbvClass($event.value)">
             <mat-option *ngFor="let ebvClass of ebvClasses"
                         [value]="ebvClass">{{ebvClass.name}}</mat-option>
         </mat-select>
     </mat-form-field>
     <mat-form-field *ngIf="ebvNames">
         <mat-label>EBV Name</mat-label>
-        <mat-select (selectionChange)="setEbvName($event.value)">
+        <mat-select [(value)]="ebvNameAuto" (selectionChange)="setEbvName($event.value)">
             <mat-option *ngFor="let ebvName of ebvNames"
                         [value]="ebvName">{{ebvName}}</mat-option>
         </mat-select>
     </mat-form-field>
     <mat-form-field *ngIf="ebvDatasets">
         <mat-label>EBV Dataset</mat-label>
-        <mat-select (selectionChange)="setEbvDataset($event.value)">
+        <mat-select [(value)]="ebvDatasetAuto" (selectionChange)="setEbvDataset($event.value)">
             <mat-option *ngFor="let ebvDataset of ebvDatasets"
                         [value]="ebvDataset">{{ebvDataset.name}}</mat-option>
         </mat-select>
@@ -36,7 +36,7 @@
         <ng-container *ngFor="let ebvSubgroupValues of ebvSubgroupValueOptions$; index as i">
             <mat-form-field>
                 <mat-label>{{ebvSubgroups[i].name}}</mat-label>
-                <mat-select (selectionChange)="setEbvSubgroupValue(i, $event.value)" #selectedEbvValue>
+                <mat-select [value]="ebvSubgroupValuesAuto[i]"(selectionChange)="setEbvSubgroupValue(i, $event.value)" #selectedEbvValue>
                     <mat-option *ngIf="ebvSubgroupValueOptions[i].length >= SUBGROUP_SEARCH_THRESHOLD">
                         <ngx-mat-select-search placeholderLabel="Filter" noEntriesFoundLabel="No entries found" ngModel
                                                (ngModelChange)="filterEbvSubgroupValueOptions(i, $event)"></ngx-mat-select-search>

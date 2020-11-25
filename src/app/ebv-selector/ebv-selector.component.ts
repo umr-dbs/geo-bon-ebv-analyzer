@@ -388,7 +388,7 @@ export class EbvSelectorComponent implements OnInit, OnDestroy {
             operator: sourceOperator,
             symbology: MappingRasterSymbology.createSymbology({
                 unit: ebvUnit,
-                colorizer: Colormap.createColorizerDataWithName('COOLWARM', ebvUnit.min, ebvUnit.max)
+                colorizer: Colormap.createColorizerDataWithName('COOLWARM', ebvUnit.min, ebvUnit.max, 16, 'linear', true)
             }),
         });
     }

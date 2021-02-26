@@ -1,6 +1,6 @@
 {
     "/cgi-bin/*": {
-        "target": "http://pc12493.mathematik.uni-marburg.de:4300/",
+        "target": "https://portal.geobon.org/",
         "changeOrigin": true,
         "secure": false,
         "logLevel": "debug"

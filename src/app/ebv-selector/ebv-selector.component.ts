@@ -144,11 +144,11 @@ export class EbvSelectorComponent implements OnInit, OnDestroy {
 
           this.request<EbvClassesResponse>('classes', undefined, data2 => {
             this.ebvClasses = data2.classes;
-            this.ebvClassAuto = this.ebvClasses.find(obj => obj.name === this.dataset['ebv'].ebvClass);
+            this.ebvClassAuto = this.ebvClasses.find(obj => obj.name === this.dataset['ebv'].ebv_class);
             this.ebvNames = this.ebvClassAuto.ebv_names;
-            this.ebvNameAuto = this.dataset['ebv'].ebvName;
+            this.ebvNameAuto = this.dataset['ebv'].ebv_name;
           });
-          this.request<EbvDatasetsResponse>('datasets', {ebv_name: this.dataset['ebv'].ebvName}, data3 => {
+          this.request<EbvDatasetsResponse>('datasets', {ebv_name: this.dataset['ebv'].ebv_name}, data3 => {
             this.ebvDatasets = data3.datasets;
             this.ebvDatasetAuto = this.ebvDatasets.find(obj => obj.name === this.dataset['title']);
             this.ebvDataset = this.ebvDatasetAuto;
